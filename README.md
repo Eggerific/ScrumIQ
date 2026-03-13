@@ -102,23 +102,27 @@ git push -u origin feature/your-feature-name
 ```
 ScrumIQ/
 ├── app/
-│   ├── login/
+│   ├── (auth)/                    # Route group — URLs stay /login, /register
+│   │   ├── layout.tsx             # Wraps login/register with AuthCardShell
+│   │   ├── login/
+│   │   │   └── page.tsx
+│   │   └── register/
+│   │       └── page.tsx
+│   ├── projects/
+│   │   ├── loading.tsx            # Loading state (matches auth style)
 │   │   └── page.tsx
-│   ├── register/
-│   │   └── page.tsx
-│   └── projects/
-│       └── page.tsx
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── globals.css
 ├── components/
 │   └── auth/
+│       ├── AuthCardShell.tsx      # Shared card + Lottie + tab switcher
 │       ├── LoginForm.tsx
 │       └── RegisterForm.tsx
 ├── lib/
-│   └── supabase/
-│       ├── client.ts
-│       └── server.ts
-├── middleware.ts
-├── types/
-│   └── index.ts
+│   └── utils.ts
 └── .env.example
 ```
+
+When you add Supabase: add `lib/supabase/client.ts` (and optionally `server.ts`), plus `middleware.ts` for protected routes.
 

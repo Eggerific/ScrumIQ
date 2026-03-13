@@ -1,8 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Default theme — page/app background */
+  --background: oklch(0.13 0.014 260);
+  --foreground: oklch(0.92 0.01 260);
+  /* Auth / register page dark theme */
+  --auth-bg: oklch(0.14 0.01 260);
+  --auth-card: oklch(0.18 0.015 260);
+  --auth-border: oklch(0.28 0.02 260);
+  --auth-accent: oklch(0.65 0.19 165);
+  --auth-accent-muted: oklch(0.55 0.15 165);
+  /* Auth animated gradient — use with bg-[length:200%_200%] and animate-gradient-shift */
+  --gradient-auth: linear-gradient(
+    135deg,
+    oklch(0.13 0.014 260) 0%,
+    oklch(0.24 0.02 260) 35%,
+    oklch(0.32 0.08 165 / 0.06) 50%,
+    oklch(0.24 0.02 260) 65%,
+    oklch(0.13 0.014 260) 100%
+  );
 }
 
 @theme inline {
@@ -10,17 +26,66 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-lato: var(--font-lato);
+  --animate-gradient-shift: gradient-shift 18s ease-in-out infinite;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Auth-style animated gradient — 18s ease-in-out infinite */
+@keyframes gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Keep auth inputs dark when browser auto-fills (no white flash) */
+@keyframes auth-autofill-dark {
+  0%,
+  100% {
+    background-color: oklch(0.14 0.01 260);
+    color: oklch(0.92 0.01 260);
+    -webkit-text-fill-color: oklch(0.92 0.01 260);
+    border-color: oklch(0.28 0.02 260);
+  }
+}
+
+/* High specificity so we override browser autofill */
+html body .auth-form-panel input[data-auth-input]:-webkit-autofill,
+html body .auth-form-panel input[data-auth-input]:-webkit-autofill:hover,
+html body .auth-form-panel input[data-auth-input]:-webkit-autofill:focus,
+html body .auth-form-panel input[data-auth-input]:-webkit-autofill:active,
+.auth-form-panel input:-webkit-autofill,
+.auth-form-panel input:-webkit-autofill:hover,
+.auth-form-panel input:-webkit-autofill:focus,
+.auth-form-panel input:-webkit-autofill:active,
+.auth-form-panel input:autofill,
+.auth-form-panel input:-moz-autofill,
+.auth-form-panel input:-moz-autofill-preview,
+input[data-auth-input]:-webkit-autofill,
+input[data-auth-input]:-webkit-autofill:hover,
+input[data-auth-input]:-webkit-autofill:focus,
+input[data-auth-input]:-webkit-autofill:active,
+input[data-auth-input]:autofill {
+  -webkit-box-shadow: 0 0 0 9999px oklch(0.14 0.01 260) inset !important;
+  box-shadow: 0 0 0 9999px oklch(0.14 0.01 260) inset !important;
+  -webkit-text-fill-color: oklch(0.92 0.01 260) !important;
+  caret-color: oklch(0.92 0.01 260) !important;
+  border-color: oklch(0.28 0.02 260) !important;
+  background-color: oklch(0.14 0.01 260) !important;
+  background-image: none !important;
+  color: oklch(0.92 0.01 260) !important;
+  transition:
+    background-color 5000s ease-in-out 0s,
+    background-image 5000s ease-in-out 0s,
+    color 5000s ease-in-out 0s !important;
+  animation: auth-autofill-dark 0s forwards !important;
 }
