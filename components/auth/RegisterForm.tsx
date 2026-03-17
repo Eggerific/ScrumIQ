@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getFriendlyAuthError } from "@/lib/auth-messages";
+import { isValidEmailFormat } from "@/lib/validation";
 
 /** Register form content only — used inside AuthCardShell in (auth) layout (tab switcher is in shell). */
 export function RegisterForm() {
@@ -16,33 +18,50 @@ export function RegisterForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [requiresConfirmation, setRequiresConfirmation] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = "Please enter your name";
     if (!email.trim()) next.email = "Email is required";
+    else if (!isValidEmailFormat(email)) next.email = "Please enter a valid email address";
     if (password.length < 8) next.password = "Password must be at least 8 characters";
     if (password !== confirmPassword) next.confirmPassword = "Passwords do not match";
     setErrors(next);
     return Object.keys(next).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
     setIsLoading(true);
-    // TODO: add Supabase; await signUp(...) then on success setSuccess(true), else setErrors and setIsLoading(false)
-  }
-
-  useEffect(() => {
-    if (!isLoading) return;
-    const t = setTimeout(() => {
-      setIsLoading(false);
+    setErrors({});
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          full_name: name.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message =
+          getFriendlyAuthError(data.error) ?? data.error ?? "Registration failed";
+        setErrors({ form: message });
+        return;
+      }
       setSuccess(true);
-    }, 1600);
-    return () => clearTimeout(t);
-  }, [isLoading]);
+      setRequiresConfirmation(!!data.requiresConfirmation);
+    } catch (err) {
+      setErrors({ form: "Something went wrong. Please try again." });
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!success) return;
@@ -52,9 +71,12 @@ export function RegisterForm() {
 
   useEffect(() => {
     if (!isExiting) return;
-    const t = setTimeout(() => router.push("/projects"), 450);
+    const t = setTimeout(
+      () => router.push(requiresConfirmation ? "/login" : "/projects"),
+      450
+    );
     return () => clearTimeout(t);
-  }, [isExiting, router]);
+  }, [isExiting, requiresConfirmation, router]);
 
   if (isLoading) {
     return (
@@ -96,8 +118,22 @@ export function RegisterForm() {
         >
           <Check className="h-8 w-8" strokeWidth={2.5} />
         </motion.div>
-        <h2 className="text-xl font-semibold text-white">Account created!</h2>
-        <p className="mt-2 text-sm text-zinc-400">Taking you to your projects…</p>
+        <h2 className="text-xl font-semibold text-white">
+          {requiresConfirmation ? "Check your email" : "Account created!"}
+        </h2>
+        <p className="mt-2 text-sm text-zinc-400">
+          {requiresConfirmation
+            ? "We sent you a confirmation link. Click it to verify your account, then sign in below."
+            : "Taking you to your projects…"}
+        </p>
+        {requiresConfirmation && (
+          <a
+            href="/login"
+            className="mt-6 inline-block rounded-xl bg-[var(--auth-accent)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+          >
+            Go to Login
+          </a>
+        )}
       </motion.div>
     );
   }
@@ -213,9 +249,13 @@ export function RegisterForm() {
           </div>
         </div>
 
+        {errors.form && (
+          <p className="text-sm text-red-400">{errors.form}</p>
+        )}
         <button
           type="submit"
-          className="w-full rounded-xl bg-[var(--auth-accent)] py-3 font-medium text-white transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--auth-accent)] focus:ring-offset-2 focus:ring-offset-[var(--auth-card)]"
+          disabled={isLoading}
+          className="w-full rounded-xl bg-[var(--auth-accent)] py-3 font-medium text-white transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--auth-accent)] focus:ring-offset-2 focus:ring-offset-[var(--auth-card)] disabled:opacity-70"
         >
           Create Account
         </button>

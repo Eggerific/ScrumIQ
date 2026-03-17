@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
+import { getFriendlyAuthError } from "@/lib/auth-messages";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 /** Login form content only — used inside AuthCardShell in (auth) layout (tab switcher is in shell). */
 export function LoginForm() {
@@ -13,7 +15,7 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [authError, setAuthError] = useState(false);
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -26,22 +28,30 @@ export function LoginForm() {
     return Object.keys(next).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setAuthError(false);
+    setAuthErrorMessage(null);
     if (!validate()) return;
     setIsLoading(true);
-    // TODO: add Supabase; await signInWithPassword({ email, password }), then setSuccess(true) or setAuthError(true) + setIsLoading(false)
-  }
-
-  useEffect(() => {
-    if (!isLoading) return;
-    const t = setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) {
+        setAuthErrorMessage(
+          getFriendlyAuthError(error.message) ?? "Invalid email or password."
+        );
+        return;
+      }
       setSuccess(true);
-    }, 1600);
-    return () => clearTimeout(t);
-  }, [isLoading]);
+    } catch {
+      setAuthErrorMessage("Invalid email or password.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!success) return;
@@ -118,14 +128,14 @@ export function LoginForm() {
         <div className="min-h-0 flex-1">
           <form onSubmit={handleSubmit} className="mt-6 space-y-7 md:space-y-8">
         {/* Auth error banner — shown on failed login */}
-        {authError && (
+        {authErrorMessage && (
           <div
             className={cn(
               "rounded-xl border px-4 py-3 text-sm",
               "border-red-500/50 bg-red-500/10 text-red-400"
             )}
           >
-            Invalid email or password
+            {authErrorMessage}
           </div>
         )}
 
