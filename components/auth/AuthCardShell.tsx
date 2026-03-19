@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -179,9 +179,11 @@ function LottieWithFallback() {
   useEffect(() => {
     if (!mounted) return;
     const handler = (e: ErrorEvent) => {
+      const msg = e?.message ?? "";
       if (
-        e?.message?.includes("Failed to load animation") ||
-        e?.message?.includes("animation with id")
+        msg.includes("Failed to load animation") ||
+        msg.includes("animation with id") ||
+        (msg.includes("animation") && msg.toLowerCase().includes("load"))
       ) {
         setUseFallback(true);
         e.preventDefault?.();
@@ -192,6 +194,10 @@ function LottieWithFallback() {
     window.addEventListener("error", handler);
     return () => window.removeEventListener("error", handler);
   }, [mounted]);
+
+  const handleLoadError = useCallback(() => {
+    setUseFallback(true);
+  }, []);
 
   if (useFallback) return <WelcomeIllustration />;
 
@@ -204,6 +210,12 @@ function LottieWithFallback() {
             src={LOTTIE_WELCOME_SRC}
             loop
             autoplay
+            dotLottieRefCallback={(instance: unknown) => {
+              const dotLottie = instance as { addEventListener?(type: string, fn: () => void): void } | null;
+              if (dotLottie?.addEventListener) {
+                dotLottie.addEventListener("loadError", handleLoadError);
+              }
+            }}
           />
         )}
       </div>
