@@ -10,6 +10,21 @@
   --auth-border: oklch(0.28 0.02 260);
   --auth-accent: oklch(0.65 0.19 165);
   --auth-accent-muted: oklch(0.55 0.15 165);
+  /* App shell — aligned with auth: dark main, lighter sidebar, green beam */
+  --app-accent: var(--auth-accent);
+  --app-accent-muted: var(--auth-accent-muted);
+  /* Sidebar: same “card” feel as auth (lighter than main) */
+  --app-sidebar-bg: var(--auth-card);
+  --app-sidebar-border: var(--auth-border);
+  /* Main: dark like login/register background */
+  --app-main-bg: var(--background);
+  /* Nav states on dark sidebar */
+  --app-nav-active-bg: oklch(0.24 0.03 165);
+  --app-nav-hover-bg: oklch(0.22 0.02 260);
+  /* Logo / text on sidebar (light on dark) */
+  --app-logo-accent: var(--auth-accent);
+  --app-text-primary: var(--foreground);
+  --app-text-muted: oklch(0.65 0.02 260);
   /* Auth animated gradient — use with bg-[length:200%_200%] and animate-gradient-shift */
   --gradient-auth: linear-gradient(
     135deg,
@@ -30,6 +45,7 @@
   --animate-gradient-shift: gradient-shift 18s ease-in-out infinite;
 }
 
+html,
 body {
   background: var(--background);
   color: var(--foreground);
