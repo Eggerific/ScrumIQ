@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PageShell } from "@/components/app/PageShell";
+import { ProjectWorkspaceView } from "@/components/projects/ProjectWorkspaceView";
 
 export const metadata: Metadata = {
   title: "Project",
@@ -11,10 +11,5 @@ interface ProjectPageProps {
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
   const { id } = await params;
-  return (
-    <PageShell
-      title="Project"
-      subtitle={`Use the sidebar to open Backlog, Sprint, Kanban, or Team.`}
-    />
-  );
+  return <ProjectWorkspaceView projectId={id} />;
 }
