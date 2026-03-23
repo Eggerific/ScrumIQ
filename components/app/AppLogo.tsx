@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 /** Company logo mark (ScrumIQ icon) — 32×48 viewBox, theme accent color. */
-function CompanyLogoIcon({ className }: { className?: string }) {
+export function ScrumIQLogoMark({ className }: { className?: string }) {
   return (
     <svg
       fill="none"
@@ -38,7 +38,7 @@ export function AppLogo() {
       aria-label="ScrumIQ home"
     >
       <span className="h-9 w-9 shrink-0 [&_svg]:h-full [&_svg]:w-full">
-        <CompanyLogoIcon />
+        <ScrumIQLogoMark />
       </span>
       <span
         className="text-xl font-semibold tracking-tight"
