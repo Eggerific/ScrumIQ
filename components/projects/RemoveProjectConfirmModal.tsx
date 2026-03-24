@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Trash2, X } from "lucide-react";
@@ -12,7 +12,7 @@ const easeSmooth = [0.25, 0.1, 0.25, 1] as const;
 interface RemoveProjectConfirmModalProps {
   project: ProjectSummary | null;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: (project: ProjectSummary) => void | Promise<void>;
 }
 
 export function RemoveProjectConfirmModal({
@@ -23,6 +23,7 @@ export function RemoveProjectConfirmModal({
   const titleId = useId();
   const descId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const [removing, setRemoving] = useState(false);
   const mounted = typeof document !== "undefined";
   const open = project !== null;
 
@@ -45,6 +46,20 @@ export function RemoveProjectConfirmModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onCancel]);
+
+  useEffect(() => {
+    if (!open) setRemoving(false);
+  }, [open]);
+
+  async function handleRemoveClick() {
+    if (!project || removing) return;
+    setRemoving(true);
+    try {
+      await onConfirm(project);
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   if (!mounted) return null;
 
@@ -109,21 +124,24 @@ export function RemoveProjectConfirmModal({
                 ref={cancelRef}
                 type="button"
                 onClick={onCancel}
-                className="rounded-lg px-4 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-[var(--app-nav-hover-bg)] hover:text-[var(--foreground)]"
+                disabled={removing}
+                className="rounded-lg px-4 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-[var(--app-nav-hover-bg)] hover:text-[var(--foreground)] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={onConfirm}
+                onClick={() => void handleRemoveClick()}
+                disabled={removing}
                 className={cn(
                   "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold",
                   "border border-red-500/35 bg-red-500/15 text-red-200 transition-colors",
-                  "hover:bg-red-500/25 hover:text-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                  "hover:bg-red-500/25 hover:text-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/30",
+                  "disabled:cursor-not-allowed disabled:opacity-50"
                 )}
               >
                 <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
-                Remove
+                {removing ? "Removing…" : "Remove"}
               </button>
             </div>
           </motion.div>

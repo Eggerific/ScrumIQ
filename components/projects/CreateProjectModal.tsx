@@ -9,11 +9,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectRoleTag, ProjectSummary } from "./project-types";
 
-const ROLE_CYCLE: ProjectRoleTag[] = [
-  "product_manager",
-  "scrum_master",
-  "team_developer",
-];
+const DEFAULT_CREATOR_ROLE: ProjectRoleTag = "product_manager";
 
 const easeSmooth = [0.25, 0.1, 0.25, 1] as const;
 
@@ -33,6 +29,8 @@ interface CreateProjectModalProps {
   onProjectCreated?: (project: ProjectSummary) => void;
   existingProjectCount?: number;
   projectLimitReached?: boolean;
+  /** Stored in `project_members.role` for the signed-in creator. */
+  creatorMemberRole?: ProjectRoleTag;
 }
 
 const emptyForm = { title: "", description: "" };
@@ -43,6 +41,7 @@ export function CreateProjectModal({
   onProjectCreated,
   existingProjectCount = 0,
   projectLimitReached = false,
+  creatorMemberRole = DEFAULT_CREATOR_ROLE,
 }: CreateProjectModalProps) {
   const titleId = useId();
   const formTitleId = useId();
@@ -78,7 +77,6 @@ export function CreateProjectModal({
   }, [open, onOpenChange]);
 
   async function confirmProject() {
-    console.log("CONFIRM CLICKED");
     if (projectLimitReached || saving) return;
     const project_name = form.title.trim();
     if (project_name.length < 2) return;
@@ -96,15 +94,12 @@ export function CreateProjectModal({
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
-      console.log("USER:", user);
-      console.log("AUTH ERROR:", authError);
 
       if (authError || !user) {
         setSaveError("You must be logged in to create a project.");
         return;
       }
-      
-      // Insert into the projects table and return the generated UUID
+
       const { data, error: insertError } = await supabase
         .from("projects")
         .insert({ project_name, description, owner_id: user.id })
@@ -117,7 +112,23 @@ export function CreateProjectModal({
         return;
       }
 
-      // Build the local ProjectSummary using the real UUID from Supabase
+      const { error: memberError } = await supabase
+        .from("project_members")
+        .insert({
+          project_id: data.id,
+          user_id: user.id,
+          role: creatorMemberRole,
+        });
+
+      if (memberError) {
+        console.error("Supabase project_members insert:", memberError.message);
+        await supabase.from("projects").delete().eq("id", data.id);
+        setSaveError(
+          "Project was created but team membership failed. Please try again."
+        );
+        return;
+      }
+
       const project: ProjectSummary = {
         id: data.id,
         name: project_name,
@@ -126,7 +137,7 @@ export function CreateProjectModal({
           DOT_CLASSES[existingProjectCount % DOT_CLASSES.length] ??
           "bg-emerald-500",
         updatedLabel: "Just now",
-        roleTag: ROLE_CYCLE[existingProjectCount % ROLE_CYCLE.length],
+        roleTag: creatorMemberRole,
         aiBriefEngagement: "pending",
       };
 

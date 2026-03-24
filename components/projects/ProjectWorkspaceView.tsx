@@ -9,20 +9,30 @@ import { useProjectsWorkspace } from "./ProjectsWorkspaceProvider";
 
 export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const { projects, updateProject } = useProjectsWorkspace();
+  const { projects, updateProject, projectsHydrated } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
   const [briefOpen, setBriefOpen] = useState(false);
 
   useEffect(() => {
-    if (project?.aiBriefEngagement === "pending") {
+    if (project?.aiBriefEngagement !== "pending") return;
+    const id = requestAnimationFrame(() => {
       setBriefOpen(true);
-    }
+    });
+    return () => cancelAnimationFrame(id);
   }, [project?.aiBriefEngagement, project?.id]);
 
   const finishBriefIntro = useCallback(() => {
     if (!project || project.aiBriefEngagement !== "pending") return;
     updateProject(project.id, { aiBriefEngagement: "complete" });
   }, [project, updateProject]);
+
+  if (!projectsHydrated) {
+    return (
+      <PageShell title="Project" subtitle="Loading workspace…">
+        <p className="text-sm text-zinc-500">Loading project…</p>
+      </PageShell>
+    );
+  }
 
   if (!project) {
     return (
