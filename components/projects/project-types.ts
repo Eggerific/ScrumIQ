@@ -10,11 +10,16 @@ export const PROJECT_ROLE_LABELS: Record<ProjectRoleTag, string> = {
 };
 
 /**
- * `pending` — first open shows the brief explainer (planned fields; no generation yet).
- * `complete` — explainer dismissed. `skipped` — legacy; can reopen explainer from the page.
- * Omitted on seeds = no auto dialog.
+ * `pending` — new project: auto-open brief once until user acts.
+ * `dismissed` — closed with X/backdrop; can reopen from the page (not stuck).
+ * `complete` — finished via “Continue to project”; can still reopen preview.
+ * `skipped` — legacy; can reopen explainer from the page.
  */
-export type AiBriefEngagement = "pending" | "complete" | "skipped";
+export type AiBriefEngagement =
+  | "pending"
+  | "dismissed"
+  | "complete"
+  | "skipped";
 
 export interface ProjectSummary {
   id: string;
