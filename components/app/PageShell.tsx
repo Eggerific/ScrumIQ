@@ -26,12 +26,14 @@ const item = {
 
 interface PageShellProps {
   title: string;
-  subtitle: string;
+  /** Omit or leave empty to hide the subtitle line. */
+  subtitle?: string;
   children?: React.ReactNode;
 }
 
 /** Shared shell for app pages: staggered title + subtitle (+ optional content) with motion. */
 export function PageShell({ title, subtitle, children }: PageShellProps) {
+  const showSubtitle = Boolean(subtitle?.trim());
   return (
     <motion.div
       variants={container}
@@ -52,14 +54,16 @@ export function PageShell({ title, subtitle, children }: PageShellProps) {
           aria-hidden
         />
       </motion.div>
-      <motion.p
-        variants={item}
-        className="mt-2 text-sm md:mt-3 md:text-base text-zinc-400"
-      >
-        {subtitle}
-      </motion.p>
+      {showSubtitle ? (
+        <motion.p
+          variants={item}
+          className="mt-2 text-sm md:mt-3 md:text-base text-zinc-400"
+        >
+          {subtitle}
+        </motion.p>
+      ) : null}
       {children ? (
-        <motion.div variants={item} className="mt-6">
+        <motion.div variants={item} className={showSubtitle ? "mt-6" : "mt-4"}>
           {children}
         </motion.div>
       ) : null}

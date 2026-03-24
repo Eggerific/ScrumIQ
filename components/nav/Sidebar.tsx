@@ -16,8 +16,10 @@ import {
   LayoutGrid,
   Users,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { AppLogo } from "@/components/app/AppLogo";
+import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
 
 export interface SidebarProps {
   fullName: string;
@@ -29,17 +31,6 @@ interface NavItem {
   label: string;
   icon?: React.ReactNode;
 }
-
-/** Placeholder project list for app state (hardcoded until wired to data). */
-const PLACEHOLDER_PROJECTS: {
-  name: string;
-  slug: string;
-  dotColor: string;
-}[] = [
-  { name: "Acme Corp", slug: "placeholder-acme-corp", dotColor: "bg-emerald-500" },
-  { name: "Beta Project", slug: "placeholder-beta-project", dotColor: "bg-amber-500" },
-  { name: "Gamma Team", slug: "placeholder-gamma-team", dotColor: "bg-blue-500" },
-];
 
 /** Project-scoped nav items for project state. */
 function getProjectNavItems(projectId: string): NavItem[] {
@@ -73,7 +64,16 @@ const easeSmooth = [0.25, 0.1, 0.25, 1] as const;
 export function Sidebar({ fullName, email }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const {
+    projects: workspaceProjects,
+    openCreateProjectModal,
+    requestRemoveProject,
+  } = useProjectsWorkspace();
   const projectId = getProjectIdFromPathname(pathname);
+  const currentWorkspaceProject =
+    projectId !== null
+      ? workspaceProjects.find((p) => p.id === projectId)
+      : undefined;
   const isProjectState = projectId !== null;
 
   const [projectsExpanded, setProjectsExpanded] = useState(false);
@@ -132,12 +132,19 @@ export function Sidebar({ fullName, email }: SidebarProps) {
               </Link>
               <div className="mt-2 flex items-center gap-2 px-2">
                 <motion.span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ background: "var(--app-accent)" }}
+                  className={cn(
+                    "h-2.5 w-2.5 shrink-0 rounded-full",
+                    currentWorkspaceProject?.dotClass ?? ""
+                  )}
+                  style={
+                    currentWorkspaceProject
+                      ? undefined
+                      : { background: "var(--app-accent)" }
+                  }
                   aria-hidden
                 />
                 <span className="truncate text-sm font-medium text-[var(--foreground)]">
-                  Project (placeholder)
+                  {currentWorkspaceProject?.name ?? "Project"}
                 </span>
               </div>
             </motion.div>
@@ -221,14 +228,14 @@ export function Sidebar({ fullName, email }: SidebarProps) {
                       className="overflow-hidden"
                     >
                       <div className="space-y-0.5 pl-4 pt-1">
-                        {PLACEHOLDER_PROJECTS.map((p, i) => {
-                          const projectHref = `/projects/${p.slug}`;
+                        {workspaceProjects.map((p, i) => {
+                          const projectHref = `/projects/${p.id}`;
                           const isActive =
                             pathname === projectHref ||
                             pathname.startsWith(`${projectHref}/`);
                           return (
                             <motion.div
-                              key={p.slug}
+                              key={p.id}
                               initial={{ opacity: 0, x: -6 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{
@@ -236,24 +243,33 @@ export function Sidebar({ fullName, email }: SidebarProps) {
                                 delay: 0.05 + i * navItemStagger,
                                 ease: easeSmooth,
                               }}
+                              className="flex min-w-0 items-stretch gap-0.5"
                             >
                               <Link
                                 href={projectHref}
                                 className={cn(
                                   navLinkBase,
-                                  "py-1.5",
+                                  "min-w-0 flex-1 py-1.5",
                                   isActive ? navLinkActive : navLinkInactive
                                 )}
                               >
                                 <span
                                   className={cn(
                                     "h-2 w-2 shrink-0 rounded-full",
-                                    p.dotColor
+                                    p.dotClass
                                   )}
                                   aria-hidden
                                 />
                                 <span className="truncate">{p.name}</span>
                               </Link>
+                              <button
+                                type="button"
+                                onClick={() => requestRemoveProject(p)}
+                                className="flex shrink-0 items-center justify-center rounded-md px-1.5 text-zinc-500 transition-colors hover:bg-red-500/10 hover:text-red-300"
+                                aria-label={`Remove ${p.name} from workspace`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                              </button>
                             </motion.div>
                           );
                         })}
@@ -262,20 +278,25 @@ export function Sidebar({ fullName, email }: SidebarProps) {
                           animate={{ opacity: 1, x: 0 }}
                           transition={{
                             duration: 0.22,
-                            delay: 0.05 + PLACEHOLDER_PROJECTS.length * navItemStagger,
+                            delay:
+                              0.05 +
+                              workspaceProjects.length * navItemStagger,
                             ease: easeSmooth,
                           }}
                           className="pt-1"
                         >
-                          <span
+                          <button
+                            type="button"
+                            onClick={openCreateProjectModal}
                             className={cn(
+                              "w-full text-left",
                               navLinkBase,
                               "py-1.5 text-zinc-500 transition-colors duration-200 hover:bg-[var(--app-nav-hover-bg)] hover:text-zinc-300"
                             )}
                           >
                             <Plus className="h-4 w-4 shrink-0" />
                             New project
-                          </span>
+                          </button>
                         </motion.div>
                       </div>
                     </motion.div>

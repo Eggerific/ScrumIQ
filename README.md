@@ -60,10 +60,13 @@ The following variables are required in your `.env.local`:
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous public key |
 | `ANTHROPIC_API_KEY` | Your Anthropic Claude API key (server-side only) |
+| `SCRUMIQ_AI_MODE` | Optional. `mock` (default if unset) = `/api/projects/ai-brief` returns local mock data. `live` = reserved until a real provider is implemented. |
 
 These can be found in:
 - **Supabase** — [supabase.com](https://supabase.com) → your project → Settings → API
 - **Anthropic** — [console.anthropic.com](https://console.anthropic.com) → API Keys
+
+See `docs/PROJECTS-WORKSPACE.md` for the **brief explainer** on first project open (planned fields; API not used by the UI yet).
 
 ---
 

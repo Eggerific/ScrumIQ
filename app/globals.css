@@ -63,6 +63,67 @@ body {
   }
 }
 
+/* Projects page — slow green-tinted mesh (ScrumIQ accent); disabled when user prefers reduced motion */
+@keyframes projects-aurora-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.32;
+  }
+  50% {
+    transform: translate3d(6%, -8%, 0) scale(1.12);
+    opacity: 0.48;
+  }
+}
+
+@keyframes projects-aurora-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+    opacity: 0.22;
+  }
+  50% {
+    transform: translate3d(-10%, 6%, 0) scale(1);
+    opacity: 0.38;
+  }
+}
+
+@keyframes projects-aurora-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0.18;
+  }
+  33% {
+    transform: translate3d(4%, 5%, 0) rotate(4deg);
+    opacity: 0.28;
+  }
+  66% {
+    transform: translate3d(-3%, -4%, 0) rotate(-3deg);
+    opacity: 0.22;
+  }
+}
+
+.projects-aurora-blob-a {
+  animation: projects-aurora-a 32s ease-in-out infinite;
+}
+
+.projects-aurora-blob-b {
+  animation: projects-aurora-b 42s ease-in-out infinite;
+}
+
+.projects-aurora-blob-c {
+  animation: projects-aurora-c 48s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projects-aurora-blob-a,
+  .projects-aurora-blob-b,
+  .projects-aurora-blob-c {
+    animation: none;
+  }
+}
+
 /* Keep auth inputs dark when browser auto-fills (no white flash) */
 @keyframes auth-autofill-dark {
   0%,
