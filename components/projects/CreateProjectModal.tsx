@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FolderKanban, X } from "lucide-react";
 import { MAX_PROJECTS_ON_WORKSPACE_LIST } from "@/lib/projects/constants";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import type { ProjectRoleTag, ProjectSummary } from "./project-types";
 
 const ROLE_CYCLE: ProjectRoleTag[] = [
@@ -22,19 +23,6 @@ const DOT_CLASSES = [
   "bg-blue-500",
   "bg-violet-500",
 ] as const;
-
-function slugify(name: string): string {
-  const s = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 44);
-  return s || "project";
-}
-
-function makeProjectId(title: string): string {
-  return `${slugify(title)}-${Date.now().toString(36)}`;
-}
 
 const inputClass =
   "mt-1.5 w-full rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/50 px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-zinc-600 outline-none transition-[border-color,box-shadow] focus:border-[var(--app-accent)]/50 focus:ring-2 focus:ring-[var(--app-accent)]/25";
@@ -62,10 +50,13 @@ export function CreateProjectModal({
   const mounted = typeof document !== "undefined";
 
   const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setForm(emptyForm);
+      setSaveError(null);
       return;
     }
     const prev = document.body.style.overflow;
@@ -86,23 +77,67 @@ export function CreateProjectModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onOpenChange]);
 
-  function confirmProject() {
-    if (projectLimitReached) return;
-    const name = form.title.trim();
-    if (name.length < 2) return;
-    const desc = form.description.trim();
-    const project: ProjectSummary = {
-      id: makeProjectId(name),
-      name,
-      description: desc || undefined,
-      dotClass:
-        DOT_CLASSES[existingProjectCount % DOT_CLASSES.length] ?? "bg-emerald-500",
-      updatedLabel: "Just now",
-      roleTag: ROLE_CYCLE[existingProjectCount % ROLE_CYCLE.length],
-      aiBriefEngagement: "pending",
-    };
-    onProjectCreated?.(project);
-    onOpenChange(false);
+  async function confirmProject() {
+    console.log("CONFIRM CLICKED");
+    if (projectLimitReached || saving) return;
+    const project_name = form.title.trim();
+    if (project_name.length < 2) return;
+    const description = form.description.trim() || null;
+
+    setSaving(true);
+    setSaveError(null);
+
+   try {
+      const supabase = createClient();
+      
+
+      // Get the current logged-in user
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      console.log("USER:", user);
+      console.log("AUTH ERROR:", authError);
+
+      if (authError || !user) {
+        setSaveError("You must be logged in to create a project.");
+        return;
+      }
+      
+      // Insert into the projects table and return the generated UUID
+      const { data, error: insertError } = await supabase
+        .from("projects")
+        .insert({ project_name, description, owner_id: user.id })
+        .select("id")
+        .single();
+
+      if (insertError || !data) {
+        console.error("Supabase insert error:", insertError?.message);
+        setSaveError("Failed to create project. Please try again.");
+        return;
+      }
+
+      // Build the local ProjectSummary using the real UUID from Supabase
+      const project: ProjectSummary = {
+        id: data.id,
+        name: project_name,
+        description: description ?? undefined,
+        dotClass:
+          DOT_CLASSES[existingProjectCount % DOT_CLASSES.length] ??
+          "bg-emerald-500",
+        updatedLabel: "Just now",
+        roleTag: ROLE_CYCLE[existingProjectCount % ROLE_CYCLE.length],
+        aiBriefEngagement: "pending",
+      };
+
+      onProjectCreated?.(project);
+      onOpenChange(false);
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      setSaveError("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const canCreate = form.title.trim().length >= 2;
@@ -136,6 +171,7 @@ export function CreateProjectModal({
             exit={{ opacity: 0, y: 28, scale: 0.98 }}
             transition={{ duration: 0.36, ease: easeSmooth }}
           >
+            {/* Header */}
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--app-sidebar-border)] px-5 py-4 md:px-6">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -163,6 +199,7 @@ export function CreateProjectModal({
               </button>
             </div>
 
+            {/* Body */}
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-6">
               {projectLimitReached ? (
                 <div
@@ -220,16 +257,24 @@ export function CreateProjectModal({
                       className={cn(inputClass, "resize-y min-h-[100px]")}
                     />
                   </div>
+
+                  {saveError ? (
+                    <p className="text-sm text-red-400" role="alert">
+                      {saveError}
+                    </p>
+                  ) : null}
                 </form>
               ) : null}
             </div>
 
+            {/* Footer */}
             <div className="shrink-0 border-t border-[var(--app-sidebar-border)] px-5 py-4 md:px-6">
               {!projectLimitReached ? (
                 <div className="flex flex-col gap-3">
                   {!canCreate ? (
                     <p className="text-center text-xs text-zinc-500 sm:text-right">
-                      Enter a <strong className="font-medium text-zinc-400">title</strong>{" "}
+                      Enter a{" "}
+                      <strong className="font-medium text-zinc-400">title</strong>{" "}
                       (2+ characters) to create the project.
                     </p>
                   ) : null}
@@ -237,14 +282,15 @@ export function CreateProjectModal({
                     <button
                       type="button"
                       onClick={() => onOpenChange(false)}
-                      className="rounded-lg px-4 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-[var(--app-nav-hover-bg)] hover:text-[var(--foreground)]"
+                      disabled={saving}
+                      className="rounded-lg px-4 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-[var(--app-nav-hover-bg)] hover:text-[var(--foreground)] disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       form="create-project-form"
-                      disabled={!canCreate}
+                      disabled={!canCreate || saving}
                       className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45"
                       style={{
                         background: "var(--app-accent)",
@@ -252,7 +298,7 @@ export function CreateProjectModal({
                       }}
                     >
                       <FolderKanban className="h-4 w-4" aria-hidden />
-                      Create project
+                      {saving ? "Creating…" : "Create project"}
                     </button>
                   </div>
                 </div>
