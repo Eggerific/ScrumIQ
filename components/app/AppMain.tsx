@@ -26,7 +26,7 @@ export function AppMain({ children }: { children: React.ReactNode }) {
       initial="hidden"
       animate="visible"
       variants={contentVariants}
-      className="relative min-h-full flex-1 overflow-auto"
+      className="relative min-h-full flex-1 overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       style={{ background: "var(--app-main-bg)" }}
     >
       <div
