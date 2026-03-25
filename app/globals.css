@@ -39,9 +39,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-lato: var(--font-lato);
+  --font-sans: var(--font-sora);
+  --font-mono: var(--font-jetbrains-mono);
   --animate-gradient-shift: gradient-shift 18s ease-in-out infinite;
 }
 
@@ -49,7 +48,7 @@ html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Auth-style animated gradient — 18s ease-in-out infinite */
@@ -120,6 +119,47 @@ body {
   .projects-aurora-blob-a,
   .projects-aurora-blob-b,
   .projects-aurora-blob-c {
+    animation: none;
+  }
+}
+
+/* Landing page — subtle structural grid (no motion) */
+.landing-page-grid {
+  background-size: 56px 56px;
+  background-image:
+    linear-gradient(
+      to right,
+      oklch(0.92 0.02 260 / 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      oklch(0.92 0.02 260 / 0.035) 1px,
+      transparent 1px
+    );
+  mask-image: radial-gradient(
+    ellipse 85% 75% at 50% 35%,
+    black 20%,
+    transparent 72%
+  );
+}
+
+@keyframes landing-noise-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-2%, 1%, 0);
+  }
+}
+
+.landing-noise-drift {
+  animation: landing-noise-drift 80s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-noise-drift {
     animation: none;
   }
 }
