@@ -1,21 +1,13 @@
 "use client";
 
+import { DotLottie } from "@lottiefiles/dotlottie-web";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { LogIn, UserPlus } from "lucide-react";
+import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
+import { ScrumIQLogoMark } from "@/components/app/AppLogo";
 import { cn } from "@/lib/utils";
-
-/** Load DotLottie only on the client; in layout it stays mounted so no unmount error when switching login/register */
-const DotLottieReact = dynamic(
-  () =>
-    import("@lottiefiles/dotlottie-react").then((mod) => ({
-      default: mod.DotLottieReact,
-    })),
-  { ssr: false }
-);
 
 const LOTTIE_WELCOME_SRC =
   "https://lottie.host/d558382c-f948-46c0-bbd6-f1ca2e53f9d9/DbXafwTplB.lottie";
@@ -72,6 +64,13 @@ export function AuthCardShell({ children }: { children: React.ReactNode }) {
             {/* Right panel — fixed height so login/register don't resize card; tab switcher + form */}
             <div className="auth-form-panel flex min-h-0 flex-1 flex-col items-stretch overflow-hidden">
               <div className="shrink-0 px-6 pt-6 md:px-10 md:pt-10">
+                <Link
+                  href="/"
+                  className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-400 transition-colors hover:text-white"
+                >
+                  <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                  Back to home
+                </Link>
                 <AuthTabSwitcher pathname={pathname} />
               </div>
               <div className="min-h-0 flex-1 overflow-hidden">
@@ -168,16 +167,12 @@ class LottieErrorBoundary extends React.Component<
 }
 
 function LottieWithFallback() {
-  const [mounted, setMounted] = useState(false);
   const [useFallback, setUseFallback] = useState(false);
-  const instanceKey = useRef(Math.random());
-
-  useEffect(() => {
-    setMounted(true);
+  const handleLoadError = useCallback(() => {
+    setUseFallback(true);
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
     const handler = (e: ErrorEvent) => {
       const msg = e?.message ?? "";
       if (
@@ -186,17 +181,10 @@ function LottieWithFallback() {
         (msg.includes("animation") && msg.toLowerCase().includes("load"))
       ) {
         setUseFallback(true);
-        e.preventDefault?.();
-        e.stopPropagation?.();
-        return true;
       }
     };
     window.addEventListener("error", handler);
     return () => window.removeEventListener("error", handler);
-  }, [mounted]);
-
-  const handleLoadError = useCallback(() => {
-    setUseFallback(true);
   }, []);
 
   if (useFallback) return <WelcomeIllustration />;
@@ -204,22 +192,45 @@ function LottieWithFallback() {
   return (
     <LottieErrorBoundary fallback={<WelcomeIllustration />}>
       <div className="h-full max-h-[280px] w-full max-w-[320px] md:max-h-[360px] md:max-w-[380px] [&_canvas]:max-h-[280px] [&_canvas]:md:max-h-[360px]">
-        {mounted && (
-          <DotLottieReact
-            key={instanceKey.current}
-            src={LOTTIE_WELCOME_SRC}
-            loop
-            autoplay
-            dotLottieRefCallback={(instance: unknown) => {
-              const dotLottie = instance as { addEventListener?(type: string, fn: () => void): void } | null;
-              if (dotLottie?.addEventListener) {
-                dotLottie.addEventListener("loadError", handleLoadError);
-              }
-            }}
-          />
-        )}
+        <WelcomeDotLottieCanvas onLoadError={handleLoadError} />
       </div>
     </LottieErrorBoundary>
+  );
+}
+
+/**
+ * Imperative DotLottie (not dotlottie-react): the React wrapper fires loadAnimation
+ * in an effect that races with async load({ src }), which breaks remote .lottie files.
+ */
+function WelcomeDotLottieCanvas({ onLoadError }: { onLoadError: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const player = new DotLottie({
+      canvas,
+      src: LOTTIE_WELCOME_SRC,
+      loop: true,
+      autoplay: true,
+      renderConfig: { autoResize: true },
+    });
+
+    player.addEventListener("loadError", onLoadError);
+
+    return () => {
+      player.removeEventListener("loadError", onLoadError);
+      player.destroy();
+    };
+  }, [onLoadError]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="block h-full w-full"
+      style={{ width: "100%", height: "100%", maxHeight: "inherit" }}
+    />
   );
 }
 
@@ -246,9 +257,14 @@ function WelcomeHero() {
           delay: 0.18,
           ease: [0.25, 0.1, 0.25, 1],
         }}
-        className="mt-2 bg-gradient-to-r from-white via-white to-[var(--auth-accent)] bg-clip-text text-3xl font-bold tracking-tight text-transparent md:text-4xl lg:text-5xl"
+        className="mt-2 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3"
       >
-        ScrumIQ
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--auth-border)] bg-[var(--auth-card)]/80 shadow-[0_0_24px_-8px_oklch(0.65_0.19_165_/0.35)] sm:h-12 sm:w-12 [&_svg]:h-full [&_svg]:w-full">
+          <ScrumIQLogoMark aria-hidden />
+        </span>
+        <span className="bg-gradient-to-r from-white via-white to-[var(--auth-accent)] bg-clip-text text-3xl font-bold tracking-tight text-transparent md:text-4xl lg:text-5xl">
+          ScrumIQ
+        </span>
       </motion.h2>
       <motion.p
         initial={{ opacity: 0 }}
