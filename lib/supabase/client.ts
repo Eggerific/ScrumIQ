@@ -9,6 +9,7 @@ export function createClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
   const validUrl =
     supabaseUrl?.startsWith("http://") || supabaseUrl?.startsWith("https://");
+    
 
   if (!supabaseUrl || !supabaseAnonKey || !validUrl) {
     throw new Error(

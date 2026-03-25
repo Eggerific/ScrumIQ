@@ -11,18 +11,18 @@ export default async function AppLayout({
 }>) {
   const supabase = await createClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session?.user) {
+  if (!user) {
     redirect("/login");
   }
 
   const fullName =
-    (session.user.user_metadata?.full_name as string | undefined)?.trim() ||
-    session.user.email?.split("@")[0] ||
+    (user.user_metadata?.full_name as string | undefined)?.trim() ||
+    user.email?.split("@")[0] ||
     "User";
-  const email = session.user.email ?? "";
+  const email = user.email ?? "";
 
   return (
     <ProjectsWorkspaceProvider>

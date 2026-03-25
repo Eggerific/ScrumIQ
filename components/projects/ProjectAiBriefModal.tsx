@@ -13,13 +13,10 @@ export interface ProjectAiBriefModalProps {
   onOpenChange: (open: boolean) => void;
   /** Shown in the header for context. */
   projectName: string;
-  /**
-   * When true, closing or continuing marks the first-visit brief as done
-   * (`aiBriefEngagement: "complete"` in the parent). When false (e.g. user opened
-   * from “preview” while already skipped), only the modal closes.
-   */
-  finishEngagementOnDismiss: boolean;
-  onFinishEngagement: () => void;
+  /** Backdrop, X, Escape — user can reopen from the project page. */
+  onDismissTemporary: () => void;
+  /** Primary CTA — marks the intro as finished for auto-open behavior. */
+  onContinue: () => void;
 }
 
 const PLANNED_FIELDS = [
@@ -57,17 +54,22 @@ export function ProjectAiBriefModal({
   open,
   onOpenChange,
   projectName,
-  finishEngagementOnDismiss,
-  onFinishEngagement,
+  onDismissTemporary,
+  onContinue,
 }: ProjectAiBriefModalProps) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
   const mounted = typeof document !== "undefined";
 
-  const dismiss = useCallback(() => {
-    if (finishEngagementOnDismiss) onFinishEngagement();
+  const dismissTemporary = useCallback(() => {
+    onDismissTemporary();
     onOpenChange(false);
-  }, [finishEngagementOnDismiss, onFinishEngagement, onOpenChange]);
+  }, [onDismissTemporary, onOpenChange]);
+
+  const continueToProject = useCallback(() => {
+    onContinue();
+    onOpenChange(false);
+  }, [onContinue, onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,11 +85,11 @@ export function ProjectAiBriefModal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") dismiss();
+      if (e.key === "Escape") dismissTemporary();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, dismiss]);
+  }, [open, dismissTemporary]);
 
   if (!mounted) return null;
 
@@ -106,7 +108,7 @@ export function ProjectAiBriefModal({
             type="button"
             aria-label="Close dialog"
             className="absolute inset-0 border-0 bg-black/55 backdrop-blur-[2px]"
-            onClick={dismiss}
+            onClick={dismissTemporary}
           />
           <motion.div
             role="dialog"
@@ -144,7 +146,7 @@ export function ProjectAiBriefModal({
               <button
                 ref={closeRef}
                 type="button"
-                onClick={dismiss}
+                onClick={dismissTemporary}
                 className="shrink-0 rounded-lg p-2 text-zinc-400 transition-colors hover:bg-[var(--app-nav-hover-bg)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)]"
               >
                 <X className="h-5 w-5" aria-hidden />
@@ -191,7 +193,7 @@ export function ProjectAiBriefModal({
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={dismiss}
+                  onClick={continueToProject}
                   className={cn(
                     "rounded-lg px-4 py-2.5 text-sm font-semibold",
                     "text-[var(--background)]"

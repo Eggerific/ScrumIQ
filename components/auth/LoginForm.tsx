@@ -78,7 +78,7 @@ export function LoginForm() {
           aria-hidden
         />
         <p className="text-sm font-medium text-white">Signing you in…</p>
-        <p className="mt-1 text-xs text-zinc-400">Taking you to your dashboard.</p>
+
       </motion.div>
     );
   }
@@ -106,7 +106,7 @@ export function LoginForm() {
           <Check className="h-8 w-8" strokeWidth={2.5} />
         </motion.div>
         <h2 className="text-xl font-semibold text-white">Welcome back!</h2>
-        <p className="mt-2 text-sm text-zinc-400">Taking you to your dashboard…</p>
+        <p className="mt-2 text-sm text-zinc-400">Taking you to your projects…</p>
       </motion.div>
     );
   }
