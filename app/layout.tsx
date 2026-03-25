@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Sora } from "next/font/google";
+import { Geist, Geist_Mono, Lato } from "next/font/google";
 import "./globals.css";
 
-/** Geometric sans — readable, modern, common on AI / product surfaces */
-const sora = Sora({
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
-  variable: "--font-sora",
-  display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
-  display: "swap",
+});
+
+const lato = Lato({
+  weight: ["300", "400", "700"],
+  variable: "--font-lato",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -32,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body
-        className={`${sora.variable} ${jetbrainsMono.variable} bg-background font-sans text-foreground antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${lato.variable} bg-background text-foreground antialiased`}
       >
         {children}
       </body>

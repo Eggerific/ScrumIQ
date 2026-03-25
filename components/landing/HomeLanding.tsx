@@ -335,7 +335,7 @@ export function HomeLanding() {
   const reducedMotion = usePrefersReducedMotion();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-background">
+    <div className="relative min-h-screen overflow-x-hidden bg-background font-[family-name:var(--font-lato)]">
       <LandingBackdrop />
 
       <div className="relative z-10">

@@ -17,7 +17,7 @@ export function AuthCardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-background">
+    <div className="relative min-h-screen w-full overflow-hidden bg-background font-[family-name:var(--font-lato)]">
       <div
         className="absolute inset-0 bg-[length:200%_200%] animate-gradient-shift"
         style={{ backgroundImage: "var(--gradient-auth)" }}
