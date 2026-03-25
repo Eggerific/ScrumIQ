@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+:root {
+  /* Default theme — page/app background */
+  --background: oklch(0.13 0.014 260);
+  --foreground: oklch(0.92 0.01 260);
+  /* Auth / register page dark theme */
+  --auth-bg: oklch(0.14 0.01 260);
+  --auth-card: oklch(0.18 0.015 260);
+  --auth-border: oklch(0.28 0.02 260);
+  --auth-accent: oklch(0.65 0.19 165);
+  --auth-accent-muted: oklch(0.55 0.15 165);
+  /* App shell — aligned with auth: dark main, lighter sidebar, green beam */
+  --app-accent: var(--auth-accent);
+  --app-accent-muted: var(--auth-accent-muted);
+  /* Sidebar: same “card” feel as auth (lighter than main) */
+  --app-sidebar-bg: var(--auth-card);
+  --app-sidebar-border: var(--auth-border);
+  /* Main: dark like login/register background */
+  --app-main-bg: var(--background);
+  /* Nav states on dark sidebar */
+  --app-nav-active-bg: oklch(0.24 0.03 165);
+  --app-nav-hover-bg: oklch(0.22 0.02 260);
+  /* Logo / text on sidebar (light on dark) */
+  --app-logo-accent: var(--auth-accent);
+  --app-text-primary: var(--foreground);
+  --app-text-muted: oklch(0.65 0.02 260);
+  /* Auth animated gradient — use with bg-[length:200%_200%] and animate-gradient-shift */
+  --gradient-auth: linear-gradient(
+    135deg,
+    oklch(0.13 0.014 260) 0%,
+    oklch(0.24 0.02 260) 35%,
+    oklch(0.32 0.08 165 / 0.06) 50%,
+    oklch(0.24 0.02 260) 65%,
+    oklch(0.13 0.014 260) 100%
+  );
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-lato: var(--font-lato);
+  --animate-gradient-shift: gradient-shift 18s ease-in-out infinite;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Auth-style animated gradient — 18s ease-in-out infinite */
+@keyframes gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Projects page — slow green-tinted mesh (ScrumIQ accent); disabled when user prefers reduced motion */
+@keyframes projects-aurora-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.32;
+  }
+  50% {
+    transform: translate3d(6%, -8%, 0) scale(1.12);
+    opacity: 0.48;
+  }
+}
+
+@keyframes projects-aurora-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+    opacity: 0.22;
+  }
+  50% {
+    transform: translate3d(-10%, 6%, 0) scale(1);
+    opacity: 0.38;
+  }
+}
+
+@keyframes projects-aurora-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0.18;
+  }
+  33% {
+    transform: translate3d(4%, 5%, 0) rotate(4deg);
+    opacity: 0.28;
+  }
+  66% {
+    transform: translate3d(-3%, -4%, 0) rotate(-3deg);
+    opacity: 0.22;
+  }
+}
+
+.projects-aurora-blob-a {
+  animation: projects-aurora-a 32s ease-in-out infinite;
+}
+
+.projects-aurora-blob-b {
+  animation: projects-aurora-b 42s ease-in-out infinite;
+}
+
+.projects-aurora-blob-c {
+  animation: projects-aurora-c 48s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projects-aurora-blob-a,
+  .projects-aurora-blob-b,
+  .projects-aurora-blob-c {
+    animation: none;
+  }
+}
+
+/* Landing page — subtle structural grid (no motion) */
+.landing-page-grid {
+  background-size: 56px 56px;
+  background-image:
+    linear-gradient(
+      to right,
+      oklch(0.92 0.02 260 / 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      oklch(0.92 0.02 260 / 0.035) 1px,
+      transparent 1px
+    );
+  mask-image: radial-gradient(
+    ellipse 85% 75% at 50% 35%,
+    black 20%,
+    transparent 72%
+  );
+}
+
+@keyframes landing-noise-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-2%, 1%, 0);
+  }
+}
+
+.landing-noise-drift {
+  animation: landing-noise-drift 80s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-noise-drift {
+    animation: none;
+  }
+}
+
+/* Keep auth inputs dark when browser auto-fills (no white flash) */
+@keyframes auth-autofill-dark {
+  0%,
+  100% {
+    background-color: oklch(0.14 0.01 260);
+    color: oklch(0.92 0.01 260);
+    -webkit-text-fill-color: oklch(0.92 0.01 260);
+    border-color: oklch(0.28 0.02 260);
+  }
+}
+
+/* High specificity so we override browser autofill */
+html body .auth-form-panel input[data-auth-input]:-webkit-autofill,
+html body .auth-form-panel input[data-auth-input]:-webkit-autofill:hover,
+html body .auth-form-panel input[data-auth-input]:-webkit-autofill:focus,
+html body .auth-form-panel input[data-auth-input]:-webkit-autofill:active,
+.auth-form-panel input:-webkit-autofill,
+.auth-form-panel input:-webkit-autofill:hover,
+.auth-form-panel input:-webkit-autofill:focus,
+.auth-form-panel input:-webkit-autofill:active,
+.auth-form-panel input:autofill,
+.auth-form-panel input:-moz-autofill,
+.auth-form-panel input:-moz-autofill-preview,
+input[data-auth-input]:-webkit-autofill,
+input[data-auth-input]:-webkit-autofill:hover,
+input[data-auth-input]:-webkit-autofill:focus,
+input[data-auth-input]:-webkit-autofill:active,
+input[data-auth-input]:autofill {
+  -webkit-box-shadow: 0 0 0 9999px oklch(0.14 0.01 260) inset !important;
+  box-shadow: 0 0 0 9999px oklch(0.14 0.01 260) inset !important;
+  -webkit-text-fill-color: oklch(0.92 0.01 260) !important;
+  caret-color: oklch(0.92 0.01 260) !important;
+  border-color: oklch(0.28 0.02 260) !important;
+  background-color: oklch(0.14 0.01 260) !important;
+  background-image: none !important;
+  color: oklch(0.92 0.01 260) !important;
+  transition:
+    background-color 5000s ease-in-out 0s,
+    background-image 5000s ease-in-out 0s,
+    color 5000s ease-in-out 0s !important;
+  animation: auth-autofill-dark 0s forwards !important;
+}
