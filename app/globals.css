@@ -124,6 +124,47 @@ body {
   }
 }
 
+/* Landing page — subtle structural grid (no motion) */
+.landing-page-grid {
+  background-size: 56px 56px;
+  background-image:
+    linear-gradient(
+      to right,
+      oklch(0.92 0.02 260 / 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      oklch(0.92 0.02 260 / 0.035) 1px,
+      transparent 1px
+    );
+  mask-image: radial-gradient(
+    ellipse 85% 75% at 50% 35%,
+    black 20%,
+    transparent 72%
+  );
+}
+
+@keyframes landing-noise-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-2%, 1%, 0);
+  }
+}
+
+.landing-noise-drift {
+  animation: landing-noise-drift 80s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-noise-drift {
+    animation: none;
+  }
+}
+
 /* Keep auth inputs dark when browser auto-fills (no white flash) */
 @keyframes auth-autofill-dark {
   0%,
