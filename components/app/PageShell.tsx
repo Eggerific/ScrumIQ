@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 const easeSmooth = [0.25, 0.1, 0.25, 1] as const;
 
@@ -29,17 +30,23 @@ interface PageShellProps {
   /** Omit or leave empty to hide the subtitle line. */
   subtitle?: string;
   children?: React.ReactNode;
+  className?: string;
 }
 
 /** Shared shell for app pages: staggered title + subtitle (+ optional content) with motion. */
-export function PageShell({ title, subtitle, children }: PageShellProps) {
+export function PageShell({
+  title,
+  subtitle,
+  children,
+  className,
+}: PageShellProps) {
   const showSubtitle = Boolean(subtitle?.trim());
   return (
     <motion.div
       variants={container}
       initial="hidden"
       animate="visible"
-      className="p-6 md:p-8"
+      className={cn("p-6 font-sans md:p-8", className)}
     >
       <motion.div variants={item} className="space-y-2">
         <h1
@@ -57,7 +64,7 @@ export function PageShell({ title, subtitle, children }: PageShellProps) {
       {showSubtitle ? (
         <motion.p
           variants={item}
-          className="mt-2 text-sm md:mt-3 md:text-base text-zinc-400"
+          className="mt-2 text-base leading-relaxed text-zinc-300 md:mt-3 md:text-[1.05rem]"
         >
           {subtitle}
         </motion.p>

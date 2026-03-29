@@ -28,18 +28,16 @@ export function AppMain({ children }: { children: React.ReactNode }) {
       initial="hidden"
       animate="visible"
       variants={contentVariants}
-      className="relative min-h-full flex-1 overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-      style={{ background: "var(--app-main-bg)" }}
+      className="animate-gradient-shift relative z-0 flex min-h-0 flex-1 flex-col overflow-y-auto bg-[var(--app-main-bg)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      style={{
+        backgroundImage: "var(--gradient-auth)",
+        backgroundSize: "200% 200%",
+        backgroundColor: "var(--app-main-bg)",
+        backgroundAttachment: "local",
+      }}
     >
-      <div
-        className="absolute inset-0 animate-gradient-shift"
-        style={{
-          backgroundImage: "var(--gradient-auth)",
-          backgroundSize: "200% 200%",
-        }}
-        aria-hidden
-      />
-      <div className="relative z-10">{children}</div>
+      {/* Background paints on the scroll container so no gap/black strip at the bottom */}
+      <div className="relative z-10 min-w-0 flex-1">{children}</div>
     </motion.main>
   );
 }

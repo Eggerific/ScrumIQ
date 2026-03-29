@@ -26,10 +26,8 @@ export default async function AppLayout({
 
   return (
     <ProjectsWorkspaceProvider>
-      <div
-        className="flex h-screen w-full"
-        style={{ background: "var(--background)" }}
-      >
+      {/* h-screen + overflow-hidden: sidebar stays full viewport height; only AppMain scrolls */}
+      <div className="flex h-screen min-h-0 w-full overflow-hidden bg-[var(--background)]">
         <Sidebar fullName={fullName} email={email} />
         <AppMain>{children}</AppMain>
       </div>

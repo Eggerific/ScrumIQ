@@ -17,6 +17,7 @@ import {
   Users,
   Plus,
   Trash2,
+  FileText,
 } from "lucide-react";
 import { AppLogo } from "@/components/app/AppLogo";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
@@ -36,6 +37,11 @@ interface NavItem {
 function getProjectNavItems(projectId: string): NavItem[] {
   const base = `/projects/${projectId}`;
   return [
+    {
+      href: `${base}/brief`,
+      label: "AI Generation",
+      icon: <FileText className="h-4 w-4 shrink-0" />,
+    },
     { href: `${base}/backlog`, label: "Backlog", icon: <ListTodo className="h-4 w-4 shrink-0" /> },
     { href: `${base}/sprint`, label: "Sprint", icon: <GitBranch className="h-4 w-4 shrink-0" /> },
     { href: `${base}/kanban`, label: "Kanban", icon: <LayoutGrid className="h-4 w-4 shrink-0" /> },
@@ -103,14 +109,14 @@ export function Sidebar({ fullName, email }: SidebarProps) {
 
   return (
     <div
-      className="relative flex h-full w-56 shrink-0 flex-col"
+      className="relative flex h-full min-h-0 w-56 shrink-0 flex-col self-stretch bg-[var(--app-sidebar-bg)]"
       style={{
         boxShadow: "4px 0 24px -4px oklch(0.65 0.19 165 / 0.25)",
       }}
     >
       <motion.aside
         initial={false}
-        className="relative flex h-full w-full flex-col border-r-0 pr-px"
+        className="relative flex h-full min-h-0 w-full flex-col border-r-0 pr-px"
         style={{ background: "var(--app-sidebar-bg)" }}
       >
       <div className="flex flex-1 flex-col overflow-hidden">
