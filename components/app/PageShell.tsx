@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -25,10 +26,16 @@ const item = {
   },
 };
 
+function subtitleVisible(subtitle: ReactNode | undefined): boolean {
+  if (subtitle == null) return false;
+  if (typeof subtitle === "string") return subtitle.trim().length > 0;
+  return true;
+}
+
 interface PageShellProps {
   title: string;
   /** Omit or leave empty to hide the subtitle line. */
-  subtitle?: string;
+  subtitle?: ReactNode;
   children?: React.ReactNode;
   className?: string;
 }
@@ -40,7 +47,7 @@ export function PageShell({
   children,
   className,
 }: PageShellProps) {
-  const showSubtitle = Boolean(subtitle?.trim());
+  const showSubtitle = subtitleVisible(subtitle);
   return (
     <motion.div
       variants={container}

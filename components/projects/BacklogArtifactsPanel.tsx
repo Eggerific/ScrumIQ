@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  GitBranch,
   Kanban,
   ListChecks,
   ListTodo,
@@ -33,11 +34,11 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import { AiBacklogConfirmModal } from "./AiBacklogConfirmModal";
-import { GreenBeamPanel } from "./GreenBeamPanel";
-import { SECONDARY_BTN_CLASS } from "./flow-constants";
-import { EPIC_BADGE, epicShellClass } from "./backlog-display-styles";
+import { writeBacklogDraft } from "@/lib/projects/backlog-draft-storage";
+import { ExpandableBacklogText } from "@/components/projects/ExpandableBacklogText";
+import { GreenBeamPanel } from "@/components/projects/ai-flow/GreenBeamPanel";
+import { SECONDARY_BTN_CLASS } from "@/components/projects/ai-flow/flow-constants";
+import { EPIC_BADGE, epicShellClass } from "@/components/projects/ai-flow/backlog-display-styles";
 
 function newId(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -87,24 +88,28 @@ const txAc =
 const txTask =
   "min-h-[3rem] resize-y border-[#4a8fd4]/45 bg-[#4a8fd4]/12 text-sky-50 placeholder:text-sky-100/35 focus-visible:border-[#4a8fd4]/70 focus-visible:ring-[#4a8fd4]/22";
 
-export interface ArtifactReviewPanelProps {
+export interface BacklogArtifactsPanelProps {
   initialDraft: AiBacklogDraftPayload;
   projectId: string;
-  onConfirm: (draft: AiBacklogDraftPayload) => void;
 }
 
-export function ArtifactReviewPanel({
+export function BacklogArtifactsPanel({
   initialDraft,
   projectId,
-  onConfirm,
-}: ArtifactReviewPanelProps) {
+}: BacklogArtifactsPanelProps) {
   const [data, setData] = useState<AiBacklogDraftPayload>(() =>
     structuredClone(initialDraft)
   );
   const [openEpics, setOpenEpics] = useState<string[]>(() =>
     initialDraft.epics.map((e) => e.id)
   );
-  const [backlogConfirmOpen, setBacklogConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      writeBacklogDraft(projectId, data);
+    }, 450);
+    return () => window.clearTimeout(t);
+  }, [data, projectId]);
 
   const updateEpic = useCallback((epicId: string, patch: Partial<AiGeneratedEpic>) => {
     setData((d) => ({
@@ -294,14 +299,6 @@ export function ArtifactReviewPanel({
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-10 pb-8">
-      <AiBacklogConfirmModal
-        open={backlogConfirmOpen}
-        onCancel={() => setBacklogConfirmOpen(false)}
-        onConfirm={() => {
-          setBacklogConfirmOpen(false);
-          onConfirm(data);
-        }}
-      />
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -316,12 +313,13 @@ export function ArtifactReviewPanel({
                   aria-hidden
                 />
                 <h2 className="text-xl font-semibold tracking-tight text-[var(--foreground)] md:text-2xl">
-                  Review backlog
+                  Backlog
                 </h2>
               </div>
               <p className="mt-4 max-w-3xl text-base leading-relaxed text-muted-foreground md:text-[1.05rem]">
-                Expand each epic to review and edit. When you&apos;re ready,
-                add the work to your project backlog.
+                Click the + beside a field to expand and edit. Each story has an
+                &quot;Add to sprint&quot; control (preview only). Changes save
+                to this browser session.
               </p>
             </div>
           </div>
@@ -338,8 +336,8 @@ export function ArtifactReviewPanel({
                 value={epic.id}
                 className={epicShellClass(epicIndex)}
               >
-                    <div className="flex items-start gap-1 border-b border-[#874e94]/20 bg-[#874e94]/10 px-3 py-1 md:px-4">
-                      <AccordionTrigger className="flex-1 py-4 hover:no-underline [&>svg]:text-muted-foreground">
+                    <div className="flex items-center gap-1 border-b border-[#874e94]/20 bg-[#874e94]/10 px-3 py-1 md:px-4">
+                      <AccordionTrigger className="min-h-0 flex-1 py-4 hover:no-underline [&>svg]:text-muted-foreground">
                         <div className="flex min-w-0 flex-1 flex-col items-start gap-2.5 text-left sm:flex-row sm:items-center">
                           <Badge
                             variant="outline"
@@ -355,20 +353,22 @@ export function ArtifactReviewPanel({
                           </span>
                         </div>
                       </AccordionTrigger>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="mt-3 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        aria-label="Remove epic"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          removeEpic(epic.id);
-                        }}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          aria-label="Remove epic"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            removeEpic(epic.id);
+                          }}
+                        >
+                          <Trash2 className="size-4" aria-hidden />
+                        </Button>
+                      </span>
                     </div>
                     <AccordionContent className="border-t border-[#874e94]/12 bg-[#1a1020]/50 pb-1">
                       <ScrollArea className="h-[min(70vh,560px)] pr-3">
@@ -377,27 +377,25 @@ export function ArtifactReviewPanel({
                             <label className="text-sm font-medium text-muted-foreground">
                               Epic title
                             </label>
-                            <Textarea
+                            <ExpandableBacklogText
                               value={epic.title}
-                              onChange={(e) =>
-                                updateEpic(epic.id, { title: e.target.value })
-                              }
+                              onChange={(v) => updateEpic(epic.id, { title: v })}
                               rows={2}
-                              className={cn(txEpic, "font-semibold")}
+                              textareaClassName={cn(txEpic, "font-semibold")}
+                              emptyHint="Untitled epic — click + to edit"
                               aria-label="Epic title"
                             />
                             <label className="text-sm font-medium text-muted-foreground">
                               Description
                             </label>
-                            <Textarea
+                            <ExpandableBacklogText
                               value={epic.description}
-                              onChange={(e) =>
-                                updateEpic(epic.id, {
-                                  description: e.target.value,
-                                })
+                              onChange={(v) =>
+                                updateEpic(epic.id, { description: v })
                               }
                               rows={4}
-                              className={txEpicDesc}
+                              textareaClassName={txEpicDesc}
+                              emptyHint="No description — click + to add"
                               aria-label="Epic description"
                             />
                           </div>
@@ -411,8 +409,8 @@ export function ArtifactReviewPanel({
                                 className="border border-[var(--app-accent)]/35 bg-[color-mix(in_oklch,var(--app-accent),transparent_92%)] shadow-sm ring-1 ring-[var(--app-accent)]/12"
                               >
                                 <CardHeader className="border-b border-[var(--app-accent)]/18 pb-3">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="space-y-1">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1 space-y-1">
                                       <Badge
                                         variant="outline"
                                         className="border-[var(--app-accent)]/40 bg-[color-mix(in_oklch,var(--app-accent),transparent_88%)] text-emerald-50"
@@ -427,30 +425,54 @@ export function ArtifactReviewPanel({
                                         Story {si + 1}
                                       </CardTitle>
                                     </div>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      className="shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                      aria-label="Remove story"
-                                      onClick={() =>
-                                        removeStory(epic.id, story.id)
-                                      }
-                                    >
-                                      <Trash2 className="size-3.5" />
-                                    </Button>
+                                    <div className="flex shrink-0 items-center gap-1 pt-0.5">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled
+                                        title="Sprint planning coming soon"
+                                        className="h-7 shrink-0 gap-1 rounded-full border-dashed border-zinc-500/50 px-2.5 text-xs font-medium text-zinc-400"
+                                      >
+                                        <GitBranch
+                                          className="size-3.5 opacity-70"
+                                          aria-hidden
+                                        />
+                                        Add to sprint
+                                      </Button>
+                                      <span className="inline-flex h-7 w-7 items-center justify-center">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                          aria-label="Remove story"
+                                          onClick={() =>
+                                            removeStory(epic.id, story.id)
+                                          }
+                                        >
+                                          <Trash2 className="size-3.5" aria-hidden />
+                                        </Button>
+                                      </span>
+                                    </div>
                                   </div>
-                                  <Textarea
-                                    value={story.title}
-                                    onChange={(e) =>
-                                      updateStory(epic.id, story.id, {
-                                        title: e.target.value,
-                                      })
-                                    }
-                                    rows={3}
-                                    className={cn(txStory, "mt-2 font-medium")}
-                                    aria-label="Story title"
-                                  />
+                                  <div className="mt-2">
+                                    <ExpandableBacklogText
+                                      value={story.title}
+                                      onChange={(v) =>
+                                        updateStory(epic.id, story.id, {
+                                          title: v,
+                                        })
+                                      }
+                                      rows={3}
+                                      textareaClassName={cn(
+                                        txStory,
+                                        "font-medium"
+                                      )}
+                                      emptyHint="Story title — click + to edit"
+                                      aria-label="Story title"
+                                    />
+                                  </div>
                                 </CardHeader>
                                 <CardContent className="space-y-4 pt-4">
                                   <div>
@@ -473,39 +495,44 @@ export function ArtifactReviewPanel({
                                               exit={{ opacity: 0, height: 0 }}
                                               className="flex items-start gap-2"
                                             >
-                                              <span className="mt-2 flex size-7 shrink-0 items-center justify-center rounded-full border border-[#c9a45c]/45 bg-[#c9a45c]/15 text-xs font-bold text-[#f5e6c8]">
+                                              <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[#c9a45c]/45 bg-[#c9a45c]/15 text-xs font-bold text-[#f5e6c8]">
                                                 {aci + 1}
                                               </span>
-                                              <Textarea
-                                                value={ac}
-                                                onChange={(e) =>
-                                                  updateAc(
-                                                    epic.id,
-                                                    story.id,
-                                                    aci,
-                                                    e.target.value
-                                                  )
-                                                }
-                                                rows={2}
-                                                className={txAc}
-                                                placeholder="Acceptance criterion"
-                                              />
-                                              <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon-sm"
-                                                className="mt-1 shrink-0 text-muted-foreground hover:text-[#dfc48a]"
-                                                aria-label="Remove criterion"
-                                                onClick={() =>
-                                                  removeAc(
-                                                    epic.id,
-                                                    story.id,
-                                                    aci
-                                                  )
-                                                }
-                                              >
-                                                <Trash2 className="size-3.5" />
-                                              </Button>
+                                              <div className="min-w-0 flex-1">
+                                                <ExpandableBacklogText
+                                                  value={ac}
+                                                  onChange={(v) =>
+                                                    updateAc(
+                                                      epic.id,
+                                                      story.id,
+                                                      aci,
+                                                      v
+                                                    )
+                                                  }
+                                                  rows={2}
+                                                  textareaClassName={txAc}
+                                                  emptyHint="Criterion — click + to edit"
+                                                  aria-label={`Acceptance criterion ${aci + 1}`}
+                                                />
+                                              </div>
+                                              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center">
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="icon-sm"
+                                                  className="h-7 w-7 text-muted-foreground hover:text-[#dfc48a]"
+                                                  aria-label="Remove criterion"
+                                                  onClick={() =>
+                                                    removeAc(
+                                                      epic.id,
+                                                      story.id,
+                                                      aci
+                                                    )
+                                                  }
+                                                >
+                                                  <Trash2 className="size-3.5" aria-hidden />
+                                                </Button>
+                                              </span>
                                             </motion.li>
                                           )
                                         )}
@@ -537,36 +564,41 @@ export function ArtifactReviewPanel({
                                           key={task.id}
                                           className="flex items-start gap-2"
                                         >
-                                          <Textarea
-                                            value={task.title}
-                                            onChange={(e) =>
-                                              updateTaskTitle(
-                                                epic.id,
-                                                story.id,
-                                                task.id,
-                                                e.target.value
-                                              )
-                                            }
-                                            rows={2}
-                                            className={txTask}
-                                            placeholder="Task"
-                                          />
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon-sm"
-                                            className="mt-1 shrink-0 text-muted-foreground hover:text-[#8ec0f0]"
-                                            aria-label="Remove task"
-                                            onClick={() =>
-                                              removeTask(
-                                                epic.id,
-                                                story.id,
-                                                task.id
-                                              )
-                                            }
-                                          >
-                                            <Trash2 className="size-3.5" />
-                                          </Button>
+                                          <div className="min-w-0 flex-1">
+                                            <ExpandableBacklogText
+                                              value={task.title}
+                                              onChange={(v) =>
+                                                updateTaskTitle(
+                                                  epic.id,
+                                                  story.id,
+                                                  task.id,
+                                                  v
+                                                )
+                                              }
+                                              rows={2}
+                                              textareaClassName={txTask}
+                                              emptyHint="Task — click + to edit"
+                                              aria-label="Task"
+                                            />
+                                          </div>
+                                          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center">
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon-sm"
+                                              className="h-7 w-7 text-muted-foreground hover:text-[#8ec0f0]"
+                                              aria-label="Remove task"
+                                              onClick={() =>
+                                                removeTask(
+                                                  epic.id,
+                                                  story.id,
+                                                  task.id
+                                                )
+                                              }
+                                            >
+                                              <Trash2 className="size-3.5" aria-hidden />
+                                            </Button>
+                                          </span>
                                         </li>
                                       ))}
                                     </ul>
@@ -621,22 +653,17 @@ export function ArtifactReviewPanel({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.15 }}
-        className="flex flex-col-reverse gap-4 sm:flex-row sm:justify-end"
+        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
       >
+        <p className="text-sm text-muted-foreground">
+          Session draft — edits sync to this tab automatically.
+        </p>
         <Link
           href={`/projects/${projectId}`}
-          className={`${SECONDARY_BTN_CLASS} inline-flex items-center justify-center`}
+          className={`${SECONDARY_BTN_CLASS} inline-flex shrink-0 items-center justify-center`}
         >
           Project home
         </Link>
-        <Button
-          type="button"
-          size="lg"
-          className="px-10 py-6 text-base font-semibold shadow-lg shadow-emerald-950/30"
-          onClick={() => setBacklogConfirmOpen(true)}
-        >
-          Add to backlog
-        </Button>
       </motion.div>
     </div>
   );

@@ -1,5 +1,7 @@
 # Projects workspace — simple overview
 
+**Note:** AI backlog **UI/UX and navigation** live in the app; **AI mock mode and JSON parsing** for real responses are owned separately (see [QA-HANDOFF-AI-GENERATION-AND-BACKLOG.md](./QA-HANDOFF-AI-GENERATION-AND-BACKLOG.md) — division of work).
+
 ## What we set up
 
 - **Projects list** is the main UX: 2×2 grid, sidebar, quick **create** (title + description), remove, limits.

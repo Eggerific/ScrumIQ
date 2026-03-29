@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageShell } from "@/components/app/PageShell";
 import { ProjectAiFlowView } from "@/components/projects/ai-flow/ProjectAiFlowView";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
+import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
 
 export default function ProjectBriefPage() {
   const params = useParams();
@@ -12,10 +14,46 @@ export default function ProjectBriefPage() {
   const { projects, projectsHydrated } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
 
+  const storedEngagement = useMemo(() => {
+    if (typeof window === "undefined" || !projectId) return null;
+    return readAiBriefEngagement(projectId);
+  }, [projectId]);
+
+  const effectiveEngagement =
+    project?.aiBriefEngagement ?? storedEngagement ?? undefined;
+
+  useEffect(() => {
+    if (!projectsHydrated || !projectId || !project) return;
+    if (effectiveEngagement === "complete") {
+      router.replace(`/projects/${projectId}/backlog`);
+    }
+  }, [
+    projectsHydrated,
+    projectId,
+    project,
+    effectiveEngagement,
+    router,
+  ]);
+
   if (!projectsHydrated) {
     return (
       <PageShell title="AI Generation" subtitle="Loading workspace…">
         <p className="text-sm text-zinc-500">Loading…</p>
+      </PageShell>
+    );
+  }
+
+  if (
+    projectId &&
+    project &&
+    effectiveEngagement === "complete"
+  ) {
+    return (
+      <PageShell
+        title="AI Generation"
+        subtitle="You’ve already added a draft to the backlog for this project. Opening the backlog…"
+      >
+        <p className="text-sm text-zinc-500">Redirecting…</p>
       </PageShell>
     );
   }

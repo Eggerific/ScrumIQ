@@ -20,7 +20,9 @@ import {
   FileText,
 } from "lucide-react";
 import { AppLogo } from "@/components/app/AppLogo";
+import { AppTooltip, AppTooltipProvider } from "@/components/ui/tooltip";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
+import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
 
 export interface SidebarProps {
   fullName: string;
@@ -33,7 +35,13 @@ interface NavItem {
   icon?: React.ReactNode;
 }
 
-/** Project-scoped nav items for project state. */
+const AI_GENERATION_DISABLED_TITLE =
+  "You already added your draft to the backlog. Review and editing happen in AI Generation before you confirm — that step is closed for this project. Use Backlog to view what you saved.";
+
+const AI_GENERATION_ENABLED_TITLE =
+  "Enter project context, generate a draft, then review and edit before you add it to the backlog.";
+
+/** Project-scoped nav items (AI Generation stays visible but is disabled after confirm). */
 function getProjectNavItems(projectId: string): NavItem[] {
   const base = `/projects/${projectId}`;
   return [
@@ -42,10 +50,26 @@ function getProjectNavItems(projectId: string): NavItem[] {
       label: "AI Generation",
       icon: <FileText className="h-4 w-4 shrink-0" />,
     },
-    { href: `${base}/backlog`, label: "Backlog", icon: <ListTodo className="h-4 w-4 shrink-0" /> },
-    { href: `${base}/sprint`, label: "Sprint", icon: <GitBranch className="h-4 w-4 shrink-0" /> },
-    { href: `${base}/kanban`, label: "Kanban", icon: <LayoutGrid className="h-4 w-4 shrink-0" /> },
-    { href: `${base}/team`, label: "Team", icon: <Users className="h-4 w-4 shrink-0" /> },
+    {
+      href: `${base}/backlog`,
+      label: "Backlog",
+      icon: <ListTodo className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: `${base}/sprint`,
+      label: "Sprint",
+      icon: <GitBranch className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: `${base}/kanban`,
+      label: "Kanban",
+      icon: <LayoutGrid className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: `${base}/team`,
+      label: "Team",
+      icon: <Users className="h-4 w-4 shrink-0" />,
+    },
   ];
 }
 
@@ -80,6 +104,10 @@ export function Sidebar({ fullName, email }: SidebarProps) {
     projectId !== null
       ? workspaceProjects.find((p) => p.id === projectId)
       : undefined;
+  const storedAiEngagement =
+    projectId !== null ? readAiBriefEngagement(projectId) : null;
+  const effectiveAiEngagement =
+    currentWorkspaceProject?.aiBriefEngagement ?? storedAiEngagement;
   const isProjectState = projectId !== null;
 
   const [projectsExpanded, setProjectsExpanded] = useState(false);
@@ -155,34 +183,70 @@ export function Sidebar({ fullName, email }: SidebarProps) {
               </div>
             </motion.div>
             {/* Project nav */}
-            <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
-              {getProjectNavItems(projectId).map((item, i) => {
-                const isActive = pathname === item.href;
-                return (
-                  <motion.div
-                    key={item.href}
-                    initial={{ opacity: 0, x: -4 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{
-                      duration: 0.25,
-                      delay: i * navItemStagger,
-                      ease: easeSmooth,
-                    }}
-                  >
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        navLinkBase,
-                        isActive ? navLinkActive : navLinkInactive
-                      )}
+            <AppTooltipProvider delayDuration={250}>
+              <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
+                {getProjectNavItems(projectId).map((item, i) => {
+                  const isActive = pathname === item.href;
+                  const isBrief = item.href.endsWith("/brief");
+                  const aiGenLocked =
+                    isBrief && effectiveAiEngagement === "complete";
+                  return (
+                    <motion.div
+                      key={item.href}
+                      initial={{ opacity: 0, x: -4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{
+                        duration: 0.25,
+                        delay: i * navItemStagger,
+                        ease: easeSmooth,
+                      }}
                     >
-                      {item.icon}
-                      {item.label}
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </nav>
+                      {isBrief ? (
+                        aiGenLocked ? (
+                          <AppTooltip content={AI_GENERATION_DISABLED_TITLE}>
+                            <span
+                              className={cn(
+                                navLinkBase,
+                                "cursor-not-allowed opacity-50"
+                              )}
+                              aria-label={AI_GENERATION_DISABLED_TITLE}
+                              aria-disabled="true"
+                            >
+                              {item.icon}
+                              {item.label}
+                            </span>
+                          </AppTooltip>
+                        ) : (
+                          <AppTooltip content={AI_GENERATION_ENABLED_TITLE}>
+                            <Link
+                              href={item.href}
+                              className={cn(
+                                navLinkBase,
+                                isActive ? navLinkActive : navLinkInactive
+                              )}
+                            >
+                              {item.icon}
+                              {item.label}
+                            </Link>
+                          </AppTooltip>
+                        )
+                      ) : (
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            navLinkBase,
+                            isActive ? navLinkActive : navLinkInactive
+                          )}
+                        >
+                          {item.icon}
+                          {item.label}
+                        </Link>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </nav>
+            </AppTooltipProvider>
           </>
         ) : (
           <>

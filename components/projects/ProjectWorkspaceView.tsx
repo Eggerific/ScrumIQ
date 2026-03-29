@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText } from "lucide-react";
+import { FileText, ListTodo } from "lucide-react";
 import { PageShell } from "@/components/app/PageShell";
 import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
 import { useProjectsWorkspace } from "./ProjectsWorkspaceProvider";
@@ -64,10 +64,9 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
     );
   }
 
-  const showBriefLink =
-    engagement === "dismissed" ||
-    engagement === "complete" ||
-    engagement === "skipped";
+  const showResumeAiLink =
+    engagement === "dismissed" || engagement === "skipped";
+  const showBacklogLink = engagement === "complete";
 
   let subtitle =
     "Use the sidebar for AI Generation, Backlog, Sprint, Kanban, and Team.";
@@ -81,7 +80,7 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
       "Generate epics and stories from the sidebar or below (session draft until DB exists).";
   } else if (engagement === "complete") {
     subtitle =
-      "Run AI Generation again from the sidebar; confirmed items appear on Backlog for this session.";
+      "Your backlog is on the Backlog tab — expand fields with + to edit. AI Generation stays closed for this project.";
   }
 
   return (
@@ -90,7 +89,15 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
         <p className="text-sm text-[var(--app-text-muted)]">
           Redirecting to AI Generation…
         </p>
-      ) : showBriefLink ? (
+      ) : showBacklogLink ? (
+        <Link
+          href={`/projects/${project.id}/backlog`}
+          className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"
+        >
+          <ListTodo className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
+          Backlog
+        </Link>
+      ) : showResumeAiLink ? (
         <Link
           href={`/projects/${project.id}/brief`}
           className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"

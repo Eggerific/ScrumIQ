@@ -2,6 +2,8 @@
 
 This document describes the **current end-to-end flow**: structured **project context** input, a **single generation** step for **epics / user stories / AC / tasks**, review, then session **Backlog** (until persistence exists).
 
+**Division of work:** The **UI/UX and navigation** for this flow (routes, forms, review, backlog, engagement) is implemented in the app; a **teammate** owns **AI mock mode**, **JSON parsing**, and wiring real responses into the same payload types (`AiBacklogDraftPayload`, etc.). See [QA-HANDOFF-AI-GENERATION-AND-BACKLOG.md](./QA-HANDOFF-AI-GENERATION-AND-BACKLOG.md) for QA handoff and boundaries.
+
 **Related:** [PROJECTS-WORKSPACE.md](./PROJECTS-WORKSPACE.md), [PLANNED-AI-BRIEF-MOCK-RESTORE.md](./PLANNED-AI-BRIEF-MOCK-RESTORE.md) (optional `POST /api/projects/ai-brief` contract for other use cases — **not** on the main backlog path today).
 
 ---

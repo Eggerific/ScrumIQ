@@ -168,7 +168,15 @@ export function ProjectAiFlowView({
   return (
     <PageShell
       title="AI Generation"
-      subtitle={`${projectName} — add context below, then generate epics, user stories, acceptance criteria, and tasks. Review the result and add it to your backlog for this browser session (saved in-session until backend persistence is wired).`}
+      subtitle={
+        <>
+          {projectName} — Share goals, audience, and constraints, then generate
+          a draft backlog.{" "}
+          <span className="font-medium text-[var(--app-accent)]">
+            Review and refine it here before adding it to your project.
+          </span>
+        </>
+      }
     >
       <AiGenerateConfirmModal
         open={generateConfirmOpen}
