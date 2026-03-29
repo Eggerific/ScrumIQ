@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { FileText, ListTodo } from "lucide-react";
 import { PageShell } from "@/components/app/PageShell";
 import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
+import { reconcileStaleCompleteEngagement } from "@/lib/projects/ai-brief-engagement-reconcile";
+import { useHasBacklogDraft } from "@/hooks/use-has-backlog-draft";
 import { useProjectsWorkspace } from "./ProjectsWorkspaceProvider";
 import type { AiBriefEngagement } from "./project-types";
 
@@ -13,6 +15,7 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
   const router = useRouter();
   const { projects, updateProject, projectsHydrated } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
+  const hasDraft = useHasBacklogDraft(projectId);
 
   const storedEngagement =
     typeof window !== "undefined" && project
@@ -29,6 +32,17 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
     const stored = readAiBriefEngagement(project.id);
     if (stored) {
       updateProject(project.id, { aiBriefEngagement: stored });
+    }
+  }, [projectsHydrated, project, updateProject]);
+
+  // `complete` in localStorage but session backlog draft missing (new session) → allow AI again.
+  useEffect(() => {
+    if (!projectsHydrated || !project) return;
+    const eng =
+      project.aiBriefEngagement ?? readAiBriefEngagement(project.id) ?? undefined;
+    const { changed, next } = reconcileStaleCompleteEngagement(project.id, eng);
+    if (changed && next === "dismissed") {
+      updateProject(project.id, { aiBriefEngagement: "dismissed" });
     }
   }, [projectsHydrated, project, updateProject]);
 
@@ -64,13 +78,17 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
     );
   }
 
+  const showBacklogLink =
+    hasDraft || engagement === "complete";
   const showResumeAiLink =
-    engagement === "dismissed" || engagement === "skipped";
-  const showBacklogLink = engagement === "complete";
+    (engagement === "dismissed" || engagement === "skipped") && !hasDraft;
 
   let subtitle =
     "Use the sidebar for AI Generation, Backlog, Sprint, Kanban, and Team.";
-  if (engagement === "pending") {
+  if (hasDraft && engagement !== "complete") {
+    subtitle =
+      "You have a generated draft in this session — open Backlog to review and edit. AI Generation is closed until that draft is cleared.";
+  } else if (engagement === "pending") {
     subtitle = "Opening AI Generation…";
   } else if (engagement === "dismissed") {
     subtitle =
@@ -80,7 +98,7 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
       "Generate epics and stories from the sidebar or below (session draft until DB exists).";
   } else if (engagement === "complete") {
     subtitle =
-      "Your backlog is on the Backlog tab — expand fields with + to edit. AI Generation stays closed for this project.";
+      "Your backlog is on the Backlog tab — expand fields with + to edit. AI Generation stays closed while this session still has your draft.";
   }
 
   return (
@@ -95,7 +113,7 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
           className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"
         >
           <ListTodo className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
-          Backlog
+          {hasDraft && engagement !== "complete" ? "Review draft" : "Backlog"}
         </Link>
       ) : showResumeAiLink ? (
         <Link

@@ -6,13 +6,16 @@ import { PageShell } from "@/components/app/PageShell";
 import { ProjectAiFlowView } from "@/components/projects/ai-flow/ProjectAiFlowView";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
 import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
+import { reconcileStaleCompleteEngagement } from "@/lib/projects/ai-brief-engagement-reconcile";
+import { useHasBacklogDraft } from "@/hooks/use-has-backlog-draft";
 
 export default function ProjectBriefPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = typeof params.id === "string" ? params.id : "";
-  const { projects, projectsHydrated } = useProjectsWorkspace();
+  const { projects, projectsHydrated, updateProject } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
+  const hasBacklogDraft = useHasBacklogDraft(projectId || null);
 
   const storedEngagement = useMemo(() => {
     if (typeof window === "undefined" || !projectId) return null;
@@ -24,7 +27,17 @@ export default function ProjectBriefPage() {
 
   useEffect(() => {
     if (!projectsHydrated || !projectId || !project) return;
-    if (effectiveEngagement === "complete") {
+    const eng =
+      project.aiBriefEngagement ?? readAiBriefEngagement(projectId) ?? undefined;
+    const { changed, next } = reconcileStaleCompleteEngagement(projectId, eng);
+    if (changed && next === "dismissed") {
+      updateProject(projectId, { aiBriefEngagement: "dismissed" });
+    }
+  }, [projectsHydrated, projectId, project, updateProject]);
+
+  useEffect(() => {
+    if (!projectsHydrated || !projectId || !project) return;
+    if (effectiveEngagement === "complete" && hasBacklogDraft) {
       router.replace(`/projects/${projectId}/backlog`);
     }
   }, [
@@ -32,6 +45,7 @@ export default function ProjectBriefPage() {
     projectId,
     project,
     effectiveEngagement,
+    hasBacklogDraft,
     router,
   ]);
 
@@ -43,15 +57,11 @@ export default function ProjectBriefPage() {
     );
   }
 
-  if (
-    projectId &&
-    project &&
-    effectiveEngagement === "complete"
-  ) {
+  if (projectId && project && effectiveEngagement === "complete" && hasBacklogDraft) {
     return (
       <PageShell
         title="AI Generation"
-        subtitle="You’ve already added a draft to the backlog for this project. Opening the backlog…"
+        subtitle="Your backlog draft is in this session. Opening the backlog…"
       >
         <p className="text-sm text-zinc-500">Redirecting…</p>
       </PageShell>

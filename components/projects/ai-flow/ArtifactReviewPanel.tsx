@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ChevronRight,
   Kanban,
   ListChecks,
   ListTodo,
@@ -17,6 +18,7 @@ import type {
   AiGeneratedTask,
 } from "@/lib/projects/ai-backlog-draft-types";
 import { cn } from "@/lib/utils";
+import { writeBacklogDraft } from "@/lib/projects/backlog-draft-storage";
 import {
   Accordion,
   AccordionContent,
@@ -105,6 +107,13 @@ export function ArtifactReviewPanel({
     initialDraft.epics.map((e) => e.id)
   );
   const [backlogConfirmOpen, setBacklogConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      writeBacklogDraft(projectId, data);
+    }, 450);
+    return () => window.clearTimeout(t);
+  }, [data, projectId]);
 
   const updateEpic = useCallback((epicId: string, patch: Partial<AiGeneratedEpic>) => {
     setData((d) => ({
@@ -528,7 +537,11 @@ export function ArtifactReviewPanel({
                                   <Separator className="bg-[var(--app-accent)]/12" />
 
                                   <div>
-                                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8ec0f0]">
+                                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#8ec0f0]">
+                                      <ListTodo
+                                        className="size-3.5"
+                                        aria-hidden
+                                      />
                                       Tasks
                                     </div>
                                     <ul className="space-y-3">
@@ -537,6 +550,16 @@ export function ArtifactReviewPanel({
                                           key={task.id}
                                           className="flex items-start gap-2"
                                         >
+                                          <span
+                                            className="mt-1.5 flex size-7 shrink-0 items-center justify-center rounded-md border border-[#4a8fd4]/40 bg-[#4a8fd4]/12 text-[#8ec0f0]"
+                                            aria-hidden
+                                          >
+                                            <ChevronRight
+                                              className="size-3.5"
+                                              strokeWidth={2.5}
+                                              aria-hidden
+                                            />
+                                          </span>
                                           <Textarea
                                             value={task.title}
                                             onChange={(e) =>
@@ -548,7 +571,7 @@ export function ArtifactReviewPanel({
                                               )
                                             }
                                             rows={2}
-                                            className={txTask}
+                                            className={cn(txTask, "min-w-0 flex-1")}
                                             placeholder="Task"
                                           />
                                           <Button

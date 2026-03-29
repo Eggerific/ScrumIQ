@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ChevronRight,
   GitBranch,
   Kanban,
   ListChecks,
@@ -555,7 +556,11 @@ export function BacklogArtifactsPanel({
                                   <Separator className="bg-[var(--app-accent)]/12" />
 
                                   <div>
-                                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8ec0f0]">
+                                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#8ec0f0]">
+                                      <ListTodo
+                                        className="size-3.5"
+                                        aria-hidden
+                                      />
                                       Tasks
                                     </div>
                                     <ul className="space-y-3">
@@ -564,6 +569,16 @@ export function BacklogArtifactsPanel({
                                           key={task.id}
                                           className="flex items-start gap-2"
                                         >
+                                          <span
+                                            className="mt-1.5 flex size-7 shrink-0 items-center justify-center rounded-md border border-[#4a8fd4]/40 bg-[#4a8fd4]/12 text-[#8ec0f0]"
+                                            aria-hidden
+                                          >
+                                            <ChevronRight
+                                              className="size-3.5"
+                                              strokeWidth={2.5}
+                                              aria-hidden
+                                            />
+                                          </span>
                                           <div className="min-w-0 flex-1">
                                             <ExpandableBacklogText
                                               value={task.title}
@@ -581,7 +596,7 @@ export function BacklogArtifactsPanel({
                                               aria-label="Task"
                                             />
                                           </div>
-                                          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center">
+                                          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center self-start pt-1.5">
                                             <Button
                                               type="button"
                                               variant="ghost"

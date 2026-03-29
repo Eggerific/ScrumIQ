@@ -23,6 +23,7 @@ import { AppLogo } from "@/components/app/AppLogo";
 import { AppTooltip, AppTooltipProvider } from "@/components/ui/tooltip";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
 import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
+import { useHasBacklogDraft } from "@/hooks/use-has-backlog-draft";
 
 export interface SidebarProps {
   fullName: string;
@@ -35,13 +36,18 @@ interface NavItem {
   icon?: React.ReactNode;
 }
 
-const AI_GENERATION_DISABLED_TITLE =
-  "You already added your draft to the backlog. Review and editing happen in AI Generation before you confirm — that step is closed for this project. Use Backlog to view what you saved.";
+/** After “Add to backlog” — session draft + engagement complete */
+const AI_GENERATION_DISABLED_AFTER_CONFIRM =
+  "Your backlog draft is in this browser session. Finish reviewing it on Backlog — AI Generation stays closed until that session draft is gone.";
+
+/** After generate (review) but before confirm — can’t run the input form again */
+const AI_GENERATION_DISABLED_DRAFT_IN_SESSION =
+  "You already generated a draft in this session. Review it on Backlog — you can’t start a new generation from scratch until this draft is gone.";
 
 const AI_GENERATION_ENABLED_TITLE =
   "Enter project context, generate a draft, then review and edit before you add it to the backlog.";
 
-/** Project-scoped nav items (AI Generation stays visible but is disabled after confirm). */
+/** Project-scoped nav items (AI Generation disabled while a session draft exists). */
 function getProjectNavItems(projectId: string): NavItem[] {
   const base = `/projects/${projectId}`;
   return [
@@ -108,6 +114,7 @@ export function Sidebar({ fullName, email }: SidebarProps) {
     projectId !== null ? readAiBriefEngagement(projectId) : null;
   const effectiveAiEngagement =
     currentWorkspaceProject?.aiBriefEngagement ?? storedAiEngagement;
+  const hasBacklogDraft = useHasBacklogDraft(projectId);
   const isProjectState = projectId !== null;
 
   const [projectsExpanded, setProjectsExpanded] = useState(false);
@@ -188,8 +195,11 @@ export function Sidebar({ fullName, email }: SidebarProps) {
                 {getProjectNavItems(projectId).map((item, i) => {
                   const isActive = pathname === item.href;
                   const isBrief = item.href.endsWith("/brief");
-                  const aiGenLocked =
-                    isBrief && effectiveAiEngagement === "complete";
+                  const aiGenLocked = isBrief && hasBacklogDraft;
+                  const aiGenDisabledTitle =
+                    effectiveAiEngagement === "complete"
+                      ? AI_GENERATION_DISABLED_AFTER_CONFIRM
+                      : AI_GENERATION_DISABLED_DRAFT_IN_SESSION;
                   return (
                     <motion.div
                       key={item.href}
@@ -203,13 +213,13 @@ export function Sidebar({ fullName, email }: SidebarProps) {
                     >
                       {isBrief ? (
                         aiGenLocked ? (
-                          <AppTooltip content={AI_GENERATION_DISABLED_TITLE}>
+                          <AppTooltip content={aiGenDisabledTitle}>
                             <span
                               className={cn(
                                 navLinkBase,
                                 "cursor-not-allowed opacity-50"
                               )}
-                              aria-label={AI_GENERATION_DISABLED_TITLE}
+                              aria-label={aiGenDisabledTitle}
                               aria-disabled="true"
                             >
                               {item.icon}

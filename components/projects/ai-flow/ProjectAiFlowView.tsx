@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useState } from "react";
+import { useCallback, useId, useLayoutEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
@@ -11,7 +11,10 @@ import {
   buildStubBacklogDraftFromInput,
   delayGenerationMs,
 } from "@/lib/projects/ai-backlog-stub";
-import { writeBacklogDraft } from "@/lib/projects/backlog-draft-storage";
+import {
+  readBacklogDraft,
+  writeBacklogDraft,
+} from "@/lib/projects/backlog-draft-storage";
 import {
   readAiBriefEngagement,
   writeAiBriefEngagement,
@@ -100,6 +103,30 @@ export function ProjectAiFlowView({
   const [errorMessage, setErrorMessage] = useState("");
   const [generateConfirmOpen, setGenerateConfirmOpen] = useState(false);
 
+  /**
+   * Resume artifact review when a session draft exists (after generate, before Add to backlog).
+   * Otherwise reset so the input form is available for a project with no draft.
+   */
+  useLayoutEffect(() => {
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      if (cancelled) return;
+      const eng = readAiBriefEngagement(projectId);
+      const stored = readBacklogDraft(projectId);
+      if (stored && eng !== "complete") {
+        setDraft(stored);
+        setPhase("artifact-review");
+        return;
+      }
+      setDraft(null);
+      setPhase("form");
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, [projectId]);
+
   const runGeneration = useCallback(async () => {
     const payload = toPayload(input);
     setPhase("generating");
@@ -107,13 +134,14 @@ export function ProjectAiFlowView({
     try {
       await delayGenerationMs();
       const d = buildStubBacklogDraftFromInput(payload);
+      writeBacklogDraft(projectId, d);
       setDraft(d);
       setPhase("artifact-review");
     } catch {
       setPhase("error");
       setErrorMessage("Couldn’t generate work items. Try again.");
     }
-  }, [input]);
+  }, [input, projectId]);
 
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
