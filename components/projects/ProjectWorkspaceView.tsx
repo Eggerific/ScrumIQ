@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText } from "lucide-react";
+import { FileText, UserPlus } from "lucide-react";
 import { PageShell } from "@/components/app/PageShell";
 import {
   readAiBriefEngagement,
   writeAiBriefEngagement,
 } from "@/lib/projects/ai-brief-storage";
 import { ProjectAiBriefModal } from "./ProjectAiBriefModal";
+import { InviteMemberModal } from "./InviteMemberModal";
 import { useProjectsWorkspace } from "./ProjectsWorkspaceProvider";
 import type { AiBriefEngagement } from "./project-types";
 
@@ -21,6 +22,7 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
   const { projects, updateProject, projectsHydrated } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
   const [briefOpen, setBriefOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const storedEngagement =
     typeof window !== "undefined" && project
@@ -110,7 +112,7 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
       "A one-time dialog explains the planned AI brief fields (generation not wired yet).";
   } else if (engagement === "dismissed") {
     subtitle =
-      "The AI brief intro is available below whenever you want it — you’re not stuck in a modal.";
+      "The AI brief intro is available below whenever you want it — you're not stuck in a modal.";
   } else if (engagement === "skipped") {
     subtitle =
       "Open the preview anytime to see which fields the future AI brief will populate.";
@@ -122,16 +124,27 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
   return (
     <>
       <PageShell title={project.name} subtitle={subtitle}>
-        {showBriefReopen ? (
+        <div className="flex flex-wrap items-center gap-3">
+          {showBriefReopen ? (
+            <button
+              type="button"
+              onClick={() => setBriefOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"
+            >
+              <FileText className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
+              AI project brief
+            </button>
+          ) : null}
+
           <button
             type="button"
-            onClick={() => setBriefOpen(true)}
+            onClick={() => setInviteOpen(true)}
             className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"
           >
-            <FileText className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
-            AI project brief
+            <UserPlus className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
+            Invite member
           </button>
-        ) : null}
+        </div>
       </PageShell>
 
       <ProjectAiBriefModal
@@ -140,6 +153,13 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
         projectName={project.name}
         onDismissTemporary={handleDismissTemporary}
         onContinue={handleContinue}
+      />
+
+      <InviteMemberModal
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        projectId={project.id}
+        projectName={project.name}
       />
     </>
   );
