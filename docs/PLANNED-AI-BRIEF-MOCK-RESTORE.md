@@ -1,6 +1,6 @@
 # AI brief API — contract & extensions
 
-The **product UI** currently shows a **read-only explainer** in `ProjectAiBriefModal.tsx` (planned fields, no `fetch`). This doc is the **HTTP + type contract** for whoever implements parsing, mock output, or a live model and later reconnects generation + review UI.
+The **main backlog flow** on **`/projects/[id]/brief`** generates artifacts via **`lib/projects/ai-backlog-stub.ts`** (stub). It does **not** call **`POST /api/projects/ai-brief`** today. **`lib/projects/ai-brief-client.ts`** remains available if you wire optional narrative-brief features later. The legacy **`ProjectAiBriefModal.tsx`** is unused. This doc remains the **`POST /api/projects/ai-brief`** contract for mock/live brief JSON.
 
 ---
 
@@ -54,8 +54,10 @@ git checkout <commit> -- app/api/projects/ai-brief/route.ts
 
 ## Checklist (reconnect AI later)
 
-- [ ] Add client `fetch` + loading/review UX (or restore a prior review step) that maps to `ProjectAiBriefResponse`.
+- [ ] Optional: call `POST /api/projects/ai-brief` from the product if you add a narrative-brief step again.
 - [ ] Keep `POST` validation aligned with the form you add (today nothing in the modal calls the API).
 - [ ] Document any new env vars in `README.md`.
 
 See **Projects workspace** overview: [PROJECTS-WORKSPACE.md](./PROJECTS-WORKSPACE.md).
+
+For the **follow-on flow** (after the brief: generated epics/stories/AC/tasks, review, then backlog), see [AI-BRIEF-AND-BACKLOG-GENERATION-FLOW.md](./AI-BRIEF-AND-BACKLOG-GENERATION-FLOW.md).
