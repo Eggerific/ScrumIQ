@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import type { ProjectAiBriefInput } from "@/lib/projects/ai-brief-types";
 import { buildMockAiBrief } from "@/lib/projects/ai-brief-mock";
-
-function isMockMode(): boolean {
-  const m = process.env.SCRUMIQ_AI_MODE?.toLowerCase().trim();
-  if (m === "live") return false;
-  if (m === "mock") return true;
-  return true;
-}
+import { isMockAiMode } from "@/lib/projects/ai-mode";
 
 function validateBody(body: unknown): body is ProjectAiBriefInput {
   if (!body || typeof body !== "object") return false;
@@ -60,7 +54,7 @@ export async function POST(req: Request) {
     );
   }
 
-  if (isMockMode()) {
+  if (isMockAiMode(process.env.SCRUMIQ_AI_MODE)) {
     await new Promise((r) =>
       setTimeout(r, 650 + Math.floor(Math.random() * 500))
     );

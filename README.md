@@ -60,7 +60,7 @@ The following variables are required in your `.env.local`:
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous public key |
 | `ANTHROPIC_API_KEY` | Your Anthropic Claude API key (server-side only) |
-| `SCRUMIQ_AI_MODE` | Optional. `mock` (default if unset) = `/api/projects/ai-brief` returns local mock data. `live` = reserved until a real provider is implemented. |
+| `SCRUMIQ_AI_MODE` | Optional. Single switch in `.env.local` (no `NEXT_PUBLIC_*` copy needed). `mock` (default if unset) = mock brief responses and the backlog flow uses **`buildStubBacklogDraftFromInput`** (no API credits). `live` = reserved until live providers and **`POST /api/projects/ai-backlog`** are implemented. The client reads this via **`GET /api/ai-config`**. |
 
 These can be found in:
 - **Supabase** — [supabase.com](https://supabase.com) → your project → Settings → API
