@@ -10,7 +10,7 @@ The **main backlog flow** on **`/projects/[id]/brief`** generates artifacts via 
 
 ## Environment
 
-- **`SCRUMIQ_AI_MODE`** — unset or `mock` → use `buildMockAiBrief`. `live` → implement provider (today returns **501** until wired).
+- **`SCRUMIQ_AI_MODE`** — unset or `mock` → use `buildMockAiBrief`. `live` → implement provider (today returns **501** until wired). The app reads the same variable on the client via **`GET /api/ai-config`** (no `NEXT_PUBLIC_*` duplicate).
 
 ## Types (`lib/projects/ai-brief-types.ts`)
 

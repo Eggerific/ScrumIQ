@@ -11,7 +11,7 @@ This document describes the **current end-to-end flow**: structured **project co
 ## End-to-end user flow (as implemented)
 
 1. **Structured input** — User fills fields aligned with `ProjectAiBriefInput` (`lib/projects/ai-brief-types.ts`), validates, and submits.
-2. **Generating** — One full-area loading state while **backlog artifacts** are produced. Today this uses **`buildStubBacklogDraftFromInput`** in `lib/projects/ai-backlog-stub.ts` (no API key, no `POST /api/projects/ai-brief` in this flow).
+2. **Generating** — One full-area loading state while **backlog artifacts** are produced. The UI loads **`GET /api/ai-config`** so **`SCRUMIQ_AI_MODE`** (in `.env.local` only) drives mock vs live without a duplicate public env var. In **mock** mode (default), **`buildStubBacklogDraftFromInput`** in `lib/projects/ai-backlog-stub.ts` runs (no API key, no `POST /api/projects/ai-brief` in this flow). **Live** mode shows a notice and blocks generation until a live backlog API exists.
 3. **Artifact review** — User inspects epics → stories → acceptance criteria → tasks (`AiBacklogDraftPayload` in `ai-backlog-draft-types.ts`).
 4. **Add to backlog** — Saves the draft to **session storage** and navigates to **`/projects/[id]/backlog`**. Engagement is marked **`complete`**.
 5. **Backlog page** — Reads the session draft and lists items.

@@ -26,6 +26,7 @@ import { AiGenerateConfirmModal } from "@/components/projects/ai-flow/AiGenerate
 import { GreenBeamPanel } from "@/components/projects/ai-flow/GreenBeamPanel";
 import { SECONDARY_BTN_CLASS } from "@/components/projects/ai-flow/flow-constants";
 import { cn } from "@/lib/utils";
+import { useAiConfig } from "@/hooks/use-ai-config";
 
 type Phase = "form" | "generating" | "artifact-review" | "error";
 
@@ -86,6 +87,7 @@ export function ProjectAiFlowView({
   projectId,
   projectName,
 }: ProjectAiFlowViewProps) {
+  const aiConfig = useAiConfig();
   const router = useRouter();
   const { projects, updateProject } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
@@ -131,6 +133,20 @@ export function ProjectAiFlowView({
     const payload = toPayload(input);
     setPhase("generating");
     setErrorMessage("");
+    if (aiConfig.status !== "ready") {
+      setPhase("error");
+      setErrorMessage(
+        "AI settings aren’t ready yet. Refresh the page and try again."
+      );
+      return;
+    }
+    if (aiConfig.mode === "live") {
+      setPhase("error");
+      setErrorMessage(
+        "Live backlog generation isn’t implemented yet. Set SCRUMIQ_AI_MODE=mock in .env.local (or leave it unset) to use mock data without API credits."
+      );
+      return;
+    }
     try {
       await delayGenerationMs();
       const d = buildStubBacklogDraftFromInput(payload);
@@ -141,7 +157,7 @@ export function ProjectAiFlowView({
       setPhase("error");
       setErrorMessage("Couldn’t generate work items. Try again.");
     }
-  }, [input, projectId]);
+  }, [input, projectId, aiConfig]);
 
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,6 +227,50 @@ export function ProjectAiFlowView({
         onCancel={() => setGenerateConfirmOpen(false)}
         onConfirm={handleConfirmGenerate}
       />
+      {aiConfig.status === "ready" && aiConfig.mode === "mock" ? (
+        <div
+          role="status"
+          className="mb-6 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-base text-amber-100/95"
+        >
+          <span className="font-medium text-amber-200">Mock AI</span>
+          {" — "}
+          No model credits used. Server mode comes from{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
+            SCRUMIQ_AI_MODE
+          </code>{" "}
+          in{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
+            .env.local
+          </code>
+          .
+        </div>
+      ) : null}
+      {aiConfig.status === "ready" && aiConfig.mode === "live" ? (
+        <div
+          role="status"
+          className="mb-6 rounded-xl border border-sky-500/25 bg-sky-500/10 px-4 py-3 text-base text-sky-100/95"
+        >
+          <span className="font-medium text-sky-200">Live AI</span>
+          {" — "}
+          Backlog generation is not wired to the model yet. Use{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
+            SCRUMIQ_AI_MODE=mock
+          </code>{" "}
+          for local mock data until{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
+            POST /api/projects/ai-backlog
+          </code>{" "}
+          exists.
+        </div>
+      ) : null}
+      {aiConfig.status === "error" ? (
+        <div
+          role="alert"
+          className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-base text-red-100"
+        >
+          {aiConfig.error} Refresh the page.
+        </div>
+      ) : null}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
           href={`/projects/${projectId}`}
@@ -327,10 +387,20 @@ export function ProjectAiFlowView({
             </button>
             <button
               type="submit"
-              className="rounded-xl px-10 py-3.5 text-base font-semibold text-[var(--background)] transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]/50"
+              disabled={
+                aiConfig.status === "loading" || aiConfig.status === "error"
+              }
+              title={
+                aiConfig.status === "loading"
+                  ? "Loading AI settings…"
+                  : aiConfig.status === "error"
+                    ? "Fix AI config loading error first"
+                    : undefined
+              }
+              className="rounded-xl px-10 py-3.5 text-base font-semibold text-[var(--background)] transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: "var(--app-accent)" }}
             >
-              Generate
+              {aiConfig.status === "loading" ? "Loading…" : "Generate"}
             </button>
           </div>
         </form>

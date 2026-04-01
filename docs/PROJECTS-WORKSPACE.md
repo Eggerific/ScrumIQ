@@ -47,10 +47,12 @@ They can own **`app/api/projects/ai-brief/route.ts`**, **`lib/projects/ai-brief-
 | File | Role |
 |------|------|
 | `app/(app)/projects/[id]/brief/page.tsx` | AI brief → backlog draft flow (form, review, stub backlog). |
-| `components/projects/ai-flow/ProjectAiFlowView.tsx` | Form → generate → review; backlog from `buildStubBacklogDraftFromInput` (no brief API in this flow). |
+| `components/projects/ai-flow/ProjectAiFlowView.tsx` | Form → generate → review; uses `GET /api/ai-config`; mock mode uses `buildStubBacklogDraftFromInput` (no brief API in this flow). |
 | `ProjectBacklogView.tsx` | Reads session draft from `backlog-draft-storage.ts`. |
 | `ProjectAiBriefModal.tsx` | Legacy explainer modal (unused; flow lives on `/brief`). |
 | `ProjectWorkspaceView.tsx` | `pending` → `router.replace` to `/brief`; link back to flow when dismissed/complete. |
 | `CreateProjectModal.tsx` | Sets `aiBriefEngagement: "pending"` on new projects. |
-| `app/api/projects/ai-brief/route.ts` | Mock/live brief API (used by flow). |
+| `app/api/ai-config/route.ts` | Exposes `SCRUMIQ_AI_MODE` to the client (`GET`). |
+| `app/api/projects/ai-brief/route.ts` | Mock/live brief API (optional; not called by `/brief` backlog flow today). |
+| `hooks/use-ai-config.ts` | Client hook for `/api/ai-config`. |
 | `lib/projects/ai-brief-types.ts` | Brief request/response contract. |
