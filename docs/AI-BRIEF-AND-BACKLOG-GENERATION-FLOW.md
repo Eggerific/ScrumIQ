@@ -11,7 +11,7 @@ This document describes the **current end-to-end flow**: structured **project co
 ## End-to-end user flow (as implemented)
 
 1. **Structured input** — User fills fields aligned with `ProjectAiBriefInput` (`lib/projects/ai-brief-types.ts`), validates, and submits.
-2. **Generating** — One full-area loading state while **backlog artifacts** are produced. The UI loads **`GET /api/ai-config`** so **`SCRUMIQ_AI_MODE`** (in `.env.local` only) drives mock vs live without a duplicate public env var. In **mock** mode (default), **`buildStubBacklogDraftFromInput`** in `lib/projects/ai-backlog-stub.ts` runs (no API key, no `POST /api/projects/ai-brief` in this flow). **Live** mode shows a notice and blocks generation until a live backlog API exists.
+2. **Generating** — One full-area loading state while **backlog artifacts** are produced. The UI loads **`GET /api/ai-config`** so **`SCRUMIQ_AI_MODE`** (in `.env.local` only) drives mock vs live without a duplicate public env var. In **mock** mode (default), **`buildStubBacklogDraftFromInput`** in `lib/projects/ai-backlog-stub.ts` runs in the browser (no API key; no `POST /api/projects/ai-brief` on this path). In **live** mode, the client calls **`POST /api/projects/[projectId]/generate-backlog`** with **`ProjectAiBriefInput`**; the server returns **`AiBacklogDraftPayload`** (deterministic preview with **`artifactSource: "live"`** if **`ANTHROPIC_API_KEY`** is unset, otherwise Claude).
 3. **Artifact review** — User inspects epics → stories → acceptance criteria → tasks (`AiBacklogDraftPayload` in `ai-backlog-draft-types.ts`).
 4. **Add to backlog** — **`POST /api/projects/[projectId]/backlog`** replaces project epics/stories/tasks in Supabase (members only), then saves the draft to **session storage** and navigates to **`/projects/[id]/backlog`**. Engagement is marked **`complete`**.
 5. **Backlog page** — Reads the **session draft** and lists items (DB-backed read UI can follow).
@@ -48,9 +48,9 @@ flowchart LR
 |-------|------|
 | **`POST /api/projects/ai-brief`** | Optional / parallel; **not required** for the backlog flow UI today. |
 | **`POST /api/projects/[projectId]/backlog`** | Body `{ draft: AiBacklogDraftPayload }`. Persists hierarchy to **`epics`**, **`stories`**, **`tasks`** (replaces existing rows for that project). Requires **`project_members`** row for the user. |
-| **Future `POST /api/projects/ai-backlog` (name TBD)** | Optional: accept `ProjectAiBriefInput`, return **`AiBacklogDraftPayload`** with `artifactSource: "live"` for live generation. |
+| **`POST /api/projects/[projectId]/generate-backlog`** | Accepts **`ProjectAiBriefInput`**, returns **`{ draft: AiBacklogDraftPayload }`**. Requires auth, project membership, and **`SCRUMIQ_AI_MODE=live`**. |
 
-The UI should swap **`buildStubBacklogDraftFromInput` + `delayGenerationMs`** for a **`fetch`** wrapper (same pattern as `lib/projects/ai-brief-client.ts`) when the route exists.
+The UI uses **`postProjectGenerateBacklog`** in `lib/projects/generate-backlog-client.ts` in live mode; mock mode keeps **`buildStubBacklogDraftFromInput` + `delayGenerationMs`**.
 
 ---
 

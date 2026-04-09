@@ -60,7 +60,9 @@ The following variables are required in your `.env.local`:
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous public key |
 | `ANTHROPIC_API_KEY` | Your Anthropic Claude API key (server-side only) |
-| `SCRUMIQ_AI_MODE` | Optional. Single switch in `.env.local` (no `NEXT_PUBLIC_*` copy needed). `mock` (default if unset) = mock brief responses and the backlog flow uses **`buildStubBacklogDraftFromInput`** (no API credits). `live` = reserved until live providers and **`POST /api/projects/ai-backlog`** are implemented. The client reads this via **`GET /api/ai-config`**. |
+| `SCRUMIQ_AI_MODE` | Optional. Single switch in `.env.local` (no `NEXT_PUBLIC_*` copy needed). `mock` (default if unset) = mock brief responses and the backlog flow uses **`buildStubBacklogDraftFromInput`** in the browser (no API credits). `live` = brief flow unchanged; backlog generation calls **`POST /api/projects/[projectId]/generate-backlog`** (server). Without **`ANTHROPIC_API_KEY`**, that route still returns a deterministic **`artifactSource: "live"`** preview for local E2E. The client reads the mode via **`GET /api/ai-config`**. |
+| `ANTHROPIC_MODEL` | Optional. Overrides the default Claude model for backlog generation (server only). |
+
 
 These can be found in:
 - **Supabase** — [supabase.com](https://supabase.com) → your project → Settings → API
