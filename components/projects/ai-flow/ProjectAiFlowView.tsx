@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useId, useLayoutEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft } from "lucide-react";
@@ -32,8 +39,19 @@ import { GreenBeamPanel } from "@/components/projects/ai-flow/GreenBeamPanel";
 import { SECONDARY_BTN_CLASS } from "@/components/projects/ai-flow/flow-constants";
 import { cn } from "@/lib/utils";
 import { useAiConfig } from "@/hooks/use-ai-config";
+import {
+  clearGenerationPending,
+  markGenerationPending,
+  readGenerationPending,
+} from "@/lib/projects/generation-pending-storage";
+import { validateBriefForBacklogGeneration } from "@/lib/projects/project-brief-generation-limits";
 
 type Phase = "form" | "generating" | "artifact-review" | "error";
+
+/** Client fetch timeout — keep in sync with user-facing copy below. */
+const CLIENT_GENERATION_TIMEOUT_MS = 125_000;
+/** How long we show “refresh may have interrupted” after a pending marker. */
+const GENERATION_PENDING_HINT_MS = CLIENT_GENERATION_TIMEOUT_MS + 15_000;
 
 /** Inset fields: neutral border until focused, then green accent (beam). */
 const INPUT_CLASS =
@@ -109,6 +127,9 @@ export function ProjectAiFlowView({
   const [draft, setDraft] = useState<AiBacklogDraftPayload | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [generateConfirmOpen, setGenerateConfirmOpen] = useState(false);
+  const [briefLimitError, setBriefLimitError] = useState("");
+  const [generationInterrupted, setGenerationInterrupted] = useState(false);
+  const generationLockRef = useRef(false);
 
   /**
    * Resume artifact review when a session draft exists (after generate, before Add to backlog).
@@ -120,13 +141,32 @@ export function ProjectAiFlowView({
       if (cancelled) return;
       const eng = readAiBriefEngagement(projectId);
       const stored = readBacklogDraft(projectId);
+      const pendingSince = readGenerationPending(projectId);
       if (stored && eng !== "complete") {
         setDraft(stored);
         setPhase("artifact-review");
+        clearGenerationPending(projectId);
+        setGenerationInterrupted(false);
         return;
       }
       setDraft(null);
       setPhase("form");
+      if (
+        pendingSince !== null &&
+        Date.now() - pendingSince < GENERATION_PENDING_HINT_MS &&
+        !stored &&
+        eng !== "complete"
+      ) {
+        setGenerationInterrupted(true);
+      } else {
+        setGenerationInterrupted(false);
+        if (
+          pendingSince !== null &&
+          Date.now() - pendingSince >= GENERATION_PENDING_HINT_MS
+        ) {
+          clearGenerationPending(projectId);
+        }
+      }
     });
     return () => {
       cancelled = true;
@@ -134,11 +174,27 @@ export function ProjectAiFlowView({
     };
   }, [projectId]);
 
+  useEffect(() => {
+    if (phase !== "generating") return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [phase]);
+
   const runGeneration = useCallback(async () => {
+    if (generationLockRef.current) return;
+    generationLockRef.current = true;
     const payload = toPayload(input);
+    markGenerationPending(projectId);
+    setGenerationInterrupted(false);
     setPhase("generating");
     setErrorMessage("");
     if (aiConfig.status !== "ready") {
+      generationLockRef.current = false;
+      clearGenerationPending(projectId);
       setPhase("error");
       setErrorMessage(
         "AI settings aren’t ready yet. Refresh the page and try again."
@@ -148,7 +204,7 @@ export function ProjectAiFlowView({
     try {
       if (aiConfig.mode === "live") {
         const d = await postProjectGenerateBacklog(projectId, payload, {
-          signal: AbortSignal.timeout(125_000),
+          signal: AbortSignal.timeout(CLIENT_GENERATION_TIMEOUT_MS),
         });
         writeBacklogDraft(projectId, d);
         setDraft(d);
@@ -174,15 +230,24 @@ export function ProjectAiFlowView({
       } else {
         setErrorMessage("Couldn’t generate work items. Try again.");
       }
+    } finally {
+      generationLockRef.current = false;
+      clearGenerationPending(projectId);
     }
   }, [input, projectId, aiConfig]);
 
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
     setTouchedSubmit(true);
+    setBriefLimitError("");
     const errs = validateBriefForm(input);
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
+    const lim = validateBriefForBacklogGeneration(toPayload(input));
+    if (!lim.ok) {
+      setBriefLimitError(lim.error);
+      return;
+    }
     setGenerateConfirmOpen(true);
   };
 
@@ -320,6 +385,31 @@ export function ProjectAiFlowView({
           {aiConfig.error} Refresh the page.
         </div>
       ) : null}
+      {phase === "form" && generationInterrupted ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-base text-amber-100/95"
+        >
+          <p className="font-medium text-amber-200">Generation may have been interrupted</p>
+          <p className="mt-2 text-amber-100/90">
+            If you refreshed or closed the tab while ScrumIQ was still working, the
+            browser may not have received the draft. Run{" "}
+            <span className="font-medium">Generate</span> again. If the server already
+            finished, you may get a fresh draft—review it before adding to the backlog.
+          </p>
+          <button
+            type="button"
+            className="mt-3 text-base font-medium text-amber-200 underline-offset-2 hover:underline"
+            onClick={() => {
+              clearGenerationPending(projectId);
+              setGenerationInterrupted(false);
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
           href={`/projects/${projectId}`}
@@ -367,6 +457,16 @@ export function ProjectAiFlowView({
               )}
             </ul>
           </div>
+
+          {briefLimitError ? (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-base text-red-100"
+            >
+              {briefLimitError}
+            </div>
+          ) : null}
 
           <GreenBeamPanel>
             <div className="space-y-7">

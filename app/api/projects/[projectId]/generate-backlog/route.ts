@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isMockAiMode } from "@/lib/projects/ai-mode";
 import { parseProjectAiBriefBody } from "@/lib/projects/project-ai-brief-body";
+import { validateBriefForBacklogGeneration } from "@/lib/projects/project-brief-generation-limits";
 import { generateLiveBacklogDraftFromBrief } from "@/lib/projects/live-backlog-from-brief";
 import {
   createRouteHandlerClient,
@@ -41,6 +42,11 @@ export async function POST(
   const parsed = parseProjectAiBriefBody(json);
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  }
+
+  const sizeCheck = validateBriefForBacklogGeneration(parsed.input);
+  if (!sizeCheck.ok) {
+    return NextResponse.json({ error: sizeCheck.error }, { status: 400 });
   }
 
   try {

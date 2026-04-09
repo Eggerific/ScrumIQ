@@ -6,10 +6,22 @@ import {
   coerceToAiBacklogDraftPayload,
   parseBacklogDraftJsonFromModelText,
 } from "@/lib/projects/ai-backlog-draft-guards";
+import { enforceLiveBacklogDraftSafeguards } from "@/lib/projects/ai-backlog-draft-safeguards";
 
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 const MAX_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = 90_000;
+
+const SYSTEM_GUARDRAILS = `You generate structured Scrum backlog JSON for the product brief provided by the user.
+
+Hard rules:
+- Stay strictly grounded in the user’s brief. Do not invent unrelated products, companies, or features.
+- Do not output marketing slogans without concrete backlog meaning.
+- Do not include URLs, email addresses, or phone numbers unless they appear verbatim in the brief.
+- Do not refuse the task; if the brief is vague, make reasonable assumptions and state them briefly inside descriptions (still valid JSON strings only).
+- Output a single JSON object only—no commentary before or after, no markdown fences.
+- Every epic, story, task, and acceptance line must be specific to this initiative (no lorem ipsum, no "asdf", no TODO placeholders).
+- Keep IDs alphanumeric plus hyphen/underscore; keep them unique across the document.`;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -73,9 +85,9 @@ Required JSON shape:
 }
 
 Rules:
-- Emit 4–8 epics with 1–4 stories each; each story has at least 2 acceptance criteria and 2–6 tasks with concrete titles.
+- Emit 4–8 epics with 1–4 stories each; each story has at least 2 acceptance criteria and 2–6 tasks with concrete, actionable titles.
 - IDs must be unique across the whole document.
-- Text must be specific to the brief (no lorem ipsum).
+- Prefer clarity and traceability to the brief over creative flourishes.
 - Output only the JSON object, nothing else.`;
 
 /**
@@ -90,7 +102,12 @@ export async function generateLiveBacklogDraftFromBrief(
 > {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
-    return { ok: true, draft: buildLiveFallbackDraftFromInput(input) };
+    const fallback = buildLiveFallbackDraftFromInput(input);
+    const safe = enforceLiveBacklogDraftSafeguards(fallback);
+    if (!safe.ok) {
+      return { ok: false, message: safe.message };
+    }
+    return { ok: true, draft: safe.draft };
   }
 
   const model = process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_MODEL;
@@ -107,7 +124,8 @@ export async function generateLiveBacklogDraftFromBrief(
         {
           model,
           max_tokens: 16_384,
-          temperature: 0.3,
+          temperature: 0.2,
+          system: SYSTEM_GUARDRAILS,
           messages: [{ role: "user", content: userContent }],
         },
         { signal: controller.signal }
@@ -137,7 +155,13 @@ export async function generateLiveBacklogDraftFromBrief(
         continue;
       }
 
-      return { ok: true, draft };
+      const safe = enforceLiveBacklogDraftSafeguards(draft);
+      if (!safe.ok) {
+        lastErr = safe.message;
+        continue;
+      }
+
+      return { ok: true, draft: safe.draft };
     } catch (err) {
       clearTimeout(timer);
       if (err instanceof Error && err.name === "AbortError") {

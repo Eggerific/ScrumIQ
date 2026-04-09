@@ -54,6 +54,30 @@ The UI uses **`postProjectGenerateBacklog`** in `lib/projects/generate-backlog-c
 
 ---
 
+## Safeguards (live generation)
+
+| Layer | Behavior |
+|-------|-----------|
+| **Brief size** | `validateBriefForBacklogGeneration` — per-field and total character caps before the model runs (`lib/projects/project-brief-generation-limits.ts`). |
+| **Prompt** | System guardrails + lower temperature in `lib/projects/live-backlog-from-brief.ts` (stay on-brief, no filler, JSON-only). |
+| **Output** | `enforceLiveBacklogDraftSafeguards` — clip string lengths and epic/story/task counts; reject placeholder-like text; require minimum AC/tasks per story (`lib/projects/ai-backlog-draft-safeguards.ts`). Failed checks trigger a retry loop server-side, then **502** with a clear message. |
+| **Client** | Generation lock (no double-submit), **beforeunload** warning while generating, **sessionStorage** pending marker + banner if the user reloads without a draft, client **timeout** aligned with server `maxDuration`. |
+
+---
+
+## QA checklist (manual)
+
+1. **Mock** — `SCRUMIQ_AI_MODE` unset or `mock`: brief → Generate → review → Add to backlog → backlog page.
+2. **Live, no key** — `SCRUMIQ_AI_MODE=live`, no `ANTHROPIC_API_KEY`: same flow; draft is deterministic server preview, `artifactSource: "live"`.
+3. **Live + key** — Add key: brief produces Claude output; verify epics/stories/AC/tasks are on-topic and pass review UI.
+4. **Validation** — Submit over-long brief (paste more than 6k characters in one field or 20k total) → inline / **400** error before or on generate.
+5. **Refresh** — Start live generate, refresh during loading → return to brief → amber “interrupted” banner; Generate again succeeds.
+6. **Timeout / error** — Induce failure (invalid key or airplane mode) → error phase → Retry → recovers when fixed.
+7. **Double submit** — Rapid double-click Generate / Retry → only one request (lock).
+8. **Navigation** — `beforeunload` appears when closing tab during generating (browser-dependent confirmation UI).
+
+---
+
 ## UI-only development
 
 Routes, validation, loading, review, error/retry, and session backlog work **without** a model API. Stub data uses **`artifactSource: "stub"`** until a live response sets **`"live"`**.
