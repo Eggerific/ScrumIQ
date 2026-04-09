@@ -370,7 +370,14 @@ export function ProjectAiFlowView({
           <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
             .env.local
           </code>{" "}
-          for real Claude output. Use{" "}
+          for real Claude output (defaults to{" "}
+          <span className="font-medium text-sky-100">Haiku</span>
+          {" "}
+          and a capped response size to limit spend—override via{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
+            ANTHROPIC_MODEL
+          </code>{" "}
+          in the README). Use{" "}
           <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
             SCRUMIQ_AI_MODE=mock
           </code>{" "}

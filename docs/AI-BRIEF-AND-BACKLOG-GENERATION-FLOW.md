@@ -61,6 +61,7 @@ The UI uses **`postProjectGenerateBacklog`** in `lib/projects/generate-backlog-c
 | **Brief size** | `validateBriefForBacklogGeneration` — per-field and total character caps before the model runs (`lib/projects/project-brief-generation-limits.ts`). |
 | **Prompt** | System guardrails + lower temperature in `lib/projects/live-backlog-from-brief.ts` (stay on-brief, no filler, JSON-only). |
 | **Output** | `enforceLiveBacklogDraftSafeguards` — clip string lengths and epic/story/task counts; reject placeholder-like text; require minimum AC/tasks per story (`lib/projects/ai-backlog-draft-safeguards.ts`). Failed checks trigger a retry loop server-side, then **502** with a clear message. |
+| **Cost** | Default model is **Claude 3.5 Haiku**; **`max_tokens`** is capped (**6144** by default, overridable via **`ANTHROPIC_MAX_OUTPUT_TOKENS`**). The prompt targets **4–6 epics** and lean text to reduce input+output tokens (`lib/projects/ai-generation-cost-defaults.ts`, `live-backlog-from-brief.ts`). |
 | **Client** | Generation lock (no double-submit), **beforeunload** warning while generating, **sessionStorage** pending marker + banner if the user reloads without a draft, client **timeout** aligned with server `maxDuration`. |
 
 ---

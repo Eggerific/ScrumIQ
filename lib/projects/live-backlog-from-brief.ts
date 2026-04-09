@@ -7,8 +7,11 @@ import {
   parseBacklogDraftJsonFromModelText,
 } from "@/lib/projects/ai-backlog-draft-guards";
 import { enforceLiveBacklogDraftSafeguards } from "@/lib/projects/ai-backlog-draft-safeguards";
+import {
+  BUDGET_DEFAULT_ANTHROPIC_MODEL,
+  resolveAnthropicMaxOutputTokens,
+} from "@/lib/projects/ai-generation-cost-defaults";
 
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 const MAX_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = 90_000;
 
@@ -21,7 +24,8 @@ Hard rules:
 - Do not refuse the task; if the brief is vague, make reasonable assumptions and state them briefly inside descriptions (still valid JSON strings only).
 - Output a single JSON object only—no commentary before or after, no markdown fences.
 - Every epic, story, task, and acceptance line must be specific to this initiative (no lorem ipsum, no "asdf", no TODO placeholders).
-- Keep IDs alphanumeric plus hyphen/underscore; keep them unique across the document.`;
+- Keep IDs alphanumeric plus hyphen/underscore; keep them unique across the document.
+- Write tightly: short epic descriptions, concise acceptance lines, task titles under ~12 words unless the brief demands detail.`;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -61,7 +65,7 @@ function briefPromptBlock(input: ProjectAiBriefInput): string {
   ].join("\n");
 }
 
-const JSON_INSTRUCTION = `You are a senior product manager. Given the project brief, produce a backlog draft as a single JSON object only (no markdown outside the JSON).
+const JSON_INSTRUCTION = `You are a senior product manager. Given the project brief, produce ONE backlog draft as compact JSON only (no markdown, no prose outside the object).
 
 Required JSON shape:
 {
@@ -84,10 +88,11 @@ Required JSON shape:
   ]
 }
 
-Rules:
-- Emit 4–8 epics with 1–4 stories each; each story has at least 2 acceptance criteria and 2–6 tasks with concrete, actionable titles.
+Rules (cost-aware — stay within this footprint):
+- Emit **4–6 epics** (not more). Each epic: **1–3 stories**. Each story: **exactly 2–4 short acceptance criteria** and **2–4 tasks** with concrete verb-led titles.
+- Epic descriptions: ~1–2 sentences. Acceptance lines: one sentence each.
 - IDs must be unique across the whole document.
-- Prefer clarity and traceability to the brief over creative flourishes.
+- Prefer traceability to the brief over breadth; do not pad with generic filler stories.
 - Output only the JSON object, nothing else.`;
 
 /**
@@ -110,7 +115,9 @@ export async function generateLiveBacklogDraftFromBrief(
     return { ok: true, draft: safe.draft };
   }
 
-  const model = process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_MODEL;
+  const model =
+    process.env.ANTHROPIC_MODEL?.trim() || BUDGET_DEFAULT_ANTHROPIC_MODEL;
+  const maxOutputTokens = resolveAnthropicMaxOutputTokens();
   const client = new Anthropic({ apiKey });
 
   const userContent = `${JSON_INSTRUCTION}\n\n---\nBrief:\n${briefPromptBlock(input)}`;
@@ -123,7 +130,7 @@ export async function generateLiveBacklogDraftFromBrief(
       const res = await client.messages.create(
         {
           model,
-          max_tokens: 16_384,
+          max_tokens: maxOutputTokens,
           temperature: 0.2,
           system: SYSTEM_GUARDRAILS,
           messages: [{ role: "user", content: userContent }],

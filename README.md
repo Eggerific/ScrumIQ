@@ -61,7 +61,8 @@ The following variables are required in your `.env.local`:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous public key |
 | `ANTHROPIC_API_KEY` | Your Anthropic Claude API key (server-side only) |
 | `SCRUMIQ_AI_MODE` | Optional. Single switch in `.env.local` (no `NEXT_PUBLIC_*` copy needed). `mock` (default if unset) = mock brief responses and the backlog flow uses **`buildStubBacklogDraftFromInput`** in the browser (no API credits). `live` = brief flow unchanged; backlog generation calls **`POST /api/projects/[projectId]/generate-backlog`** (server). Without **`ANTHROPIC_API_KEY`**, that route still returns a deterministic **`artifactSource: "live"`** preview for local E2E. The client reads the mode via **`GET /api/ai-config`**. |
-| `ANTHROPIC_MODEL` | Optional. Overrides the default Claude model for backlog generation (server only). |
+| `ANTHROPIC_MODEL` | Optional. Backlog generation defaults to **Claude 3.5 Haiku** (`claude-3-5-haiku-20241022`) for lower cost. Set to e.g. **`claude-sonnet-4-20250514`** when you want stronger reasoning (higher spend). |
+| `ANTHROPIC_MAX_OUTPUT_TOKENS` | Optional. Caps **output** tokens per generation request (integer **2048–8192**, default **6144**). Lower = cheaper ceiling; too low may truncate JSON and force retries. Server only. |
 
 
 These can be found in:
@@ -69,6 +70,14 @@ These can be found in:
 - **Anthropic** — [console.anthropic.com](https://console.anthropic.com) → API Keys
 
 See `docs/PROJECTS-WORKSPACE.md` for the **brief explainer** on first project open (planned fields; API not used by the UI yet).
+
+### Keeping AI costs down (students & side projects)
+
+- Use **`SCRUMIQ_AI_MODE=mock`** (or leave unset) while building UI—no Anthropic charges.
+- With **`SCRUMIQ_AI_MODE=live`** and **no** `ANTHROPIC_API_KEY`, the app uses a **free deterministic** server preview (still `artifactSource: "live"`).
+- When you add a key, **Haiku stays the default**; the prompt asks for a **smaller backlog tree** (4–6 epics) and **capped output tokens** to limit worst-case cost.
+- For a big class project or demo where quality matters more than price, set **`ANTHROPIC_MODEL`** to a Sonnet id and optionally raise **`ANTHROPIC_MAX_OUTPUT_TOKENS`** (still capped at 8192 in code).
+- In the [Anthropic console](https://console.anthropic.com), set **usage limits / alerts** so you get notified before a surprise bill.
 
 ---
 
