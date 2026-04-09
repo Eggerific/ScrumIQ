@@ -10,7 +10,8 @@
  * - `ANTHROPIC_MAX_OUTPUT_TOKENS` — integer 2048–8192 (server only).
  */
 
-export const BUDGET_DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-20241022";
+/** Anthropic-recommended budget tier; replaces retired `claude-3-5-haiku-20241022`. */
+export const BUDGET_DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 
 /** Typical backlog JSON fits here; raises = more cost if the model fills the budget. */
 export const BUDGET_DEFAULT_MAX_OUTPUT_TOKENS = 6_144;

@@ -61,7 +61,7 @@ The following variables are required in your `.env.local`:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous public key |
 | `ANTHROPIC_API_KEY` | Your Anthropic Claude API key (server-side only) |
 | `SCRUMIQ_AI_MODE` | Optional. Single switch in `.env.local` (no `NEXT_PUBLIC_*` copy needed). `mock` (default if unset) = mock brief responses and the backlog flow uses **`buildStubBacklogDraftFromInput`** in the browser (no API credits). `live` = brief flow unchanged; backlog generation calls **`POST /api/projects/[projectId]/generate-backlog`** (server). Without **`ANTHROPIC_API_KEY`**, that route still returns a deterministic **`artifactSource: "live"`** preview for local E2E. The client reads the mode via **`GET /api/ai-config`**. |
-| `ANTHROPIC_MODEL` | Optional. Backlog generation defaults to **Claude 3.5 Haiku** (`claude-3-5-haiku-20241022`) for lower cost. Set to e.g. **`claude-sonnet-4-20250514`** when you want stronger reasoning (higher spend). |
+| `ANTHROPIC_MODEL` | Optional. Backlog generation defaults to **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`) for lower cost. Set to e.g. **`claude-sonnet-4-20250514`** when you want stronger reasoning (higher spend). |
 | `ANTHROPIC_MAX_OUTPUT_TOKENS` | Optional. Caps **output** tokens per generation request (integer **2048–8192**, default **6144**). Lower = cheaper ceiling; too low may truncate JSON and force retries. Server only. |
 
 
