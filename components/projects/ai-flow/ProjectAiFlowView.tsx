@@ -12,6 +12,10 @@ import {
   delayGenerationMs,
 } from "@/lib/projects/ai-backlog-stub";
 import {
+  GenerateBacklogClientError,
+  postProjectGenerateBacklog,
+} from "@/lib/projects/generate-backlog-client";
+import {
   readBacklogDraft,
   writeBacklogDraft,
 } from "@/lib/projects/backlog-draft-storage";
@@ -141,22 +145,35 @@ export function ProjectAiFlowView({
       );
       return;
     }
-    if (aiConfig.mode === "live") {
-      setPhase("error");
-      setErrorMessage(
-        "Live backlog generation isn’t implemented yet. Set SCRUMIQ_AI_MODE=mock in .env.local (or leave it unset) to use mock data without API credits."
-      );
-      return;
-    }
     try {
+      if (aiConfig.mode === "live") {
+        const d = await postProjectGenerateBacklog(projectId, payload, {
+          signal: AbortSignal.timeout(125_000),
+        });
+        writeBacklogDraft(projectId, d);
+        setDraft(d);
+        setPhase("artifact-review");
+        return;
+      }
       await delayGenerationMs();
       const d = buildStubBacklogDraftFromInput(payload);
       writeBacklogDraft(projectId, d);
       setDraft(d);
       setPhase("artifact-review");
-    } catch {
+    } catch (e) {
       setPhase("error");
-      setErrorMessage("Couldn’t generate work items. Try again.");
+      if (e instanceof GenerateBacklogClientError) {
+        setErrorMessage(e.message);
+      } else if (
+        e instanceof DOMException &&
+        e.name === "AbortError"
+      ) {
+        setErrorMessage(
+          "Generation timed out. Try again, or shorten your brief."
+        );
+      } else {
+        setErrorMessage("Couldn’t generate work items. Try again.");
+      }
     }
   }, [input, projectId, aiConfig]);
 
@@ -252,6 +269,7 @@ export function ProjectAiFlowView({
       {aiConfig.status === "ready" && aiConfig.mode === "mock" ? (
         <div
           role="status"
+          aria-live="polite"
           className="mb-6 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-base text-amber-100/95"
         >
           <span className="font-medium text-amber-200">Mock AI</span>
@@ -270,19 +288,28 @@ export function ProjectAiFlowView({
       {aiConfig.status === "ready" && aiConfig.mode === "live" ? (
         <div
           role="status"
+          aria-live="polite"
           className="mb-6 rounded-xl border border-sky-500/25 bg-sky-500/10 px-4 py-3 text-base text-sky-100/95"
         >
           <span className="font-medium text-sky-200">Live AI</span>
           {" — "}
-          Backlog generation is not wired to the model yet. Use{" "}
+          Backlog is generated on the server. Without{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
+            ANTHROPIC_API_KEY
+          </code>{" "}
+          you still get a deterministic preview (
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
+            artifactSource: live
+          </code>
+          ). Add a key in{" "}
+          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
+            .env.local
+          </code>{" "}
+          for real Claude output. Use{" "}
           <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
             SCRUMIQ_AI_MODE=mock
           </code>{" "}
-          for local mock data until{" "}
-          <code className="rounded bg-black/30 px-1.5 py-0.5 text-sm text-zinc-200">
-            POST /api/projects/ai-backlog
-          </code>{" "}
-          exists.
+          to skip network and use the client stub instead.
         </div>
       ) : null}
       {aiConfig.status === "error" ? (

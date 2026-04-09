@@ -1,11 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
-import type { AiBacklogDraftPayload } from "@/lib/projects/ai-backlog-draft-types";
-import { isAiBacklogDraftPayload } from "@/lib/projects/ai-backlog-draft-guards";
-import { persistProjectBacklog } from "@/lib/projects/persist-project-backlog";
+import { isMockAiMode } from "@/lib/projects/ai-mode";
+import { parseProjectAiBriefBody } from "@/lib/projects/project-ai-brief-body";
+import { generateLiveBacklogDraftFromBrief } from "@/lib/projects/live-backlog-from-brief";
 import {
   createRouteHandlerClient,
   SUPABASE_CONFIG_ERROR_MESSAGE,
 } from "@/lib/supabase/server";
+
+export const maxDuration = 120;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,6 +21,16 @@ export async function POST(
     return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
   }
 
+  if (isMockAiMode(process.env.SCRUMIQ_AI_MODE)) {
+    return NextResponse.json(
+      {
+        error:
+          "Live backlog generation is disabled. Set SCRUMIQ_AI_MODE=live in .env.local to use this endpoint.",
+      },
+      { status: 403 }
+    );
+  }
+
   let json: unknown;
   try {
     json = await request.json();
@@ -26,23 +38,14 @@ export async function POST(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (
-    !json ||
-    typeof json !== "object" ||
-    !("draft" in json) ||
-    !isAiBacklogDraftPayload((json as { draft: unknown }).draft)
-  ) {
-    return NextResponse.json(
-      { error: "Body must include a valid backlog draft" },
-      { status: 400 }
-    );
+  const parsed = parseProjectAiBriefBody(json);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   }
 
-  const draft = (json as { draft: AiBacklogDraftPayload }).draft;
-
   try {
-    const response = NextResponse.json({ ok: true });
-    const supabase = createRouteHandlerClient(request, response);
+    const baseResponse = NextResponse.json({ ok: true });
+    const supabase = createRouteHandlerClient(request, baseResponse);
 
     const {
       data: { user },
@@ -72,7 +75,7 @@ export async function POST(
 
     const { data: projectRow, error: projectErr } = await supabase
       .from("projects")
-      .select("owner_id")
+      .select("id")
       .eq("id", projectId)
       .maybeSingle();
 
@@ -82,28 +85,18 @@ export async function POST(
     if (!projectRow) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
-    if (projectRow.owner_id !== user.id) {
+
+    const gen = await generateLiveBacklogDraftFromBrief(parsed.input);
+    if (!gen.ok) {
       return NextResponse.json(
-        { error: "Only the project creator can save backlog items from AI Generation" },
-        { status: 403 }
+        { error: gen.message },
+        { status: 502 }
       );
     }
 
-    const result = await persistProjectBacklog(supabase, projectId, draft);
-
-    if (!result.ok) {
-      return NextResponse.json({ error: result.message }, { status: 500 });
-    }
-
-    const body = {
-      ok: true,
-      epicCount: result.epicCount,
-      storyCount: result.storyCount,
-      taskCount: result.taskCount,
-    };
-    return new NextResponse(JSON.stringify(body), {
+    return new NextResponse(JSON.stringify({ draft: gen.draft }), {
       status: 200,
-      headers: response.headers,
+      headers: baseResponse.headers,
     });
   } catch (err) {
     if (err instanceof Error && err.message === SUPABASE_CONFIG_ERROR_MESSAGE) {
