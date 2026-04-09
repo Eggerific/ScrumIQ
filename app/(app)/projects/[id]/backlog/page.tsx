@@ -6,5 +6,5 @@ import { ProjectBacklogView } from "@/components/projects/ProjectBacklogView";
 export default function ProjectBacklogPage() {
   const params = useParams();
   const projectId = typeof params.id === "string" ? params.id : "";
-  return <ProjectBacklogView projectId={projectId} />;
+  return <ProjectBacklogView key={projectId} projectId={projectId} />;
 }

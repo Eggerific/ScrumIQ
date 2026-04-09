@@ -102,6 +102,25 @@ export async function POST(
       );
     }
 
+    const { data: projectRow, error: projectErr } = await supabase
+      .from("projects")
+      .select("owner_id")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    if (projectErr) {
+      return NextResponse.json({ error: projectErr.message }, { status: 500 });
+    }
+    if (!projectRow) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+    if (projectRow.owner_id !== user.id) {
+      return NextResponse.json(
+        { error: "Only the project creator can save backlog items from AI Generation" },
+        { status: 403 }
+      );
+    }
+
     const result = await persistProjectBacklog(supabase, projectId, draft);
 
     if (!result.ok) {

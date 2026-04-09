@@ -69,6 +69,7 @@ export function mapProjectRowsToSummaries(
         DOT_CLASSES[i % DOT_CLASSES.length] ?? "bg-emerald-500",
       updatedLabel: formatUpdatedLabel(row.updated_at ?? row.created_at),
       roleTag,
+      isCurrentUserOwner: row.owner_id === currentUserId,
       aiBriefEngagement: undefined,
     };
   });

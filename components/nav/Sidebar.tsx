@@ -47,6 +47,9 @@ const AI_GENERATION_DISABLED_DRAFT_IN_SESSION =
 const AI_GENERATION_ENABLED_TITLE =
   "Enter project context, generate a draft, then review and edit before you add it to the backlog.";
 
+const AI_GENERATION_DISABLED_NOT_OWNER =
+  "Only the project creator can run AI Generation. You can open Backlog, Sprint, and Kanban once the backlog exists.";
+
 /** Project-scoped nav items (AI Generation disabled while a session draft exists). */
 function getProjectNavItems(projectId: string): NavItem[] {
   const base = `/projects/${projectId}`;
@@ -195,7 +198,9 @@ export function Sidebar({ fullName, email }: SidebarProps) {
                 {getProjectNavItems(projectId).map((item, i) => {
                   const isActive = pathname === item.href;
                   const isBrief = item.href.endsWith("/brief");
-                  const aiGenLocked = isBrief && hasBacklogDraft;
+                  const isOwner = currentWorkspaceProject?.isCurrentUserOwner ?? false;
+                  const aiGenDisabledInvitee = isBrief && !isOwner;
+                  const aiGenLocked = isBrief && isOwner && hasBacklogDraft;
                   const aiGenDisabledTitle =
                     effectiveAiEngagement === "complete"
                       ? AI_GENERATION_DISABLED_AFTER_CONFIRM
@@ -212,7 +217,21 @@ export function Sidebar({ fullName, email }: SidebarProps) {
                       }}
                     >
                       {isBrief ? (
-                        aiGenLocked ? (
+                        aiGenDisabledInvitee ? (
+                          <AppTooltip content={AI_GENERATION_DISABLED_NOT_OWNER}>
+                            <span
+                              className={cn(
+                                navLinkBase,
+                                "cursor-not-allowed opacity-50"
+                              )}
+                              aria-label={AI_GENERATION_DISABLED_NOT_OWNER}
+                              aria-disabled="true"
+                            >
+                              {item.icon}
+                              {item.label}
+                            </span>
+                          </AppTooltip>
+                        ) : aiGenLocked ? (
                           <AppTooltip content={aiGenDisabledTitle}>
                             <span
                               className={cn(

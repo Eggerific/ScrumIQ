@@ -30,5 +30,7 @@ export interface ProjectSummary {
   updatedLabel?: string;
   /** Your role / hat on this project (shown on the card). */
   roleTag?: ProjectRoleTag;
+  /** True when the signed-in user created the project (`projects.owner_id`). */
+  isCurrentUserOwner: boolean;
   aiBriefEngagement?: AiBriefEngagement;
 }
