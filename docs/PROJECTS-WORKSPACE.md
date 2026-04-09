@@ -53,6 +53,9 @@ They can own **`app/api/projects/ai-brief/route.ts`**, **`lib/projects/ai-brief-
 | `ProjectWorkspaceView.tsx` | `pending` → `router.replace` to `/brief`; link back to flow when dismissed/complete. |
 | `CreateProjectModal.tsx` | Sets `aiBriefEngagement: "pending"` on new projects. |
 | `app/api/ai-config/route.ts` | Exposes `SCRUMIQ_AI_MODE` to the client (`GET`). |
+| `app/api/projects/[projectId]/backlog/route.ts` | Persists `AiBacklogDraftPayload` to `epics` / `stories` / `tasks`. |
+| `lib/projects/persist-project-backlog.ts` | Insert/replace backlog rows for a project. |
+| `supabase/migrations/20260331120000_epics_stories_tasks_rls.sql` | Table + RLS migration (run in Supabase SQL Editor). |
 | `app/api/projects/ai-brief/route.ts` | Mock/live brief API (optional; not called by `/brief` backlog flow today). |
 | `hooks/use-ai-config.ts` | Client hook for `/api/ai-config`. |
 | `lib/projects/ai-brief-types.ts` | Brief request/response contract. |

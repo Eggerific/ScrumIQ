@@ -92,12 +92,14 @@ const txTask =
 export interface ArtifactReviewPanelProps {
   initialDraft: AiBacklogDraftPayload;
   projectId: string;
-  onConfirm: (draft: AiBacklogDraftPayload) => void;
+  projectName?: string;
+  onConfirm: (draft: AiBacklogDraftPayload) => void | Promise<void>;
 }
 
 export function ArtifactReviewPanel({
   initialDraft,
   projectId,
+  projectName,
   onConfirm,
 }: ArtifactReviewPanelProps) {
   const [data, setData] = useState<AiBacklogDraftPayload>(() =>
@@ -107,6 +109,10 @@ export function ArtifactReviewPanel({
     initialDraft.epics.map((e) => e.id)
   );
   const [backlogConfirmOpen, setBacklogConfirmOpen] = useState(false);
+  const [backlogPersisting, setBacklogPersisting] = useState(false);
+  const [backlogPersistError, setBacklogPersistError] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -305,10 +311,27 @@ export function ArtifactReviewPanel({
     <div className="mx-auto max-w-[1500px] space-y-10 pb-8">
       <AiBacklogConfirmModal
         open={backlogConfirmOpen}
-        onCancel={() => setBacklogConfirmOpen(false)}
-        onConfirm={() => {
+        projectName={projectName}
+        onCancel={() => {
+          if (backlogPersisting) return;
+          setBacklogPersistError(null);
           setBacklogConfirmOpen(false);
-          onConfirm(data);
+        }}
+        isPending={backlogPersisting}
+        errorMessage={backlogPersistError}
+        onConfirm={async () => {
+          setBacklogPersistError(null);
+          setBacklogPersisting(true);
+          try {
+            await onConfirm(data);
+            setBacklogConfirmOpen(false);
+          } catch (e) {
+            setBacklogPersistError(
+              e instanceof Error ? e.message : "Couldn’t save to the project."
+            );
+          } finally {
+            setBacklogPersisting(false);
+          }
         }}
       />
       <motion.div
