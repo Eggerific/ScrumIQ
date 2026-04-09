@@ -19,6 +19,7 @@ import type {
 } from "@/lib/projects/ai-backlog-draft-types";
 import { cn } from "@/lib/utils";
 import { writeBacklogDraft } from "@/lib/projects/backlog-draft-storage";
+import { notifyProjectBacklogSavedToDatabase } from "@/lib/projects/project-stories-sync-events";
 import {
   Accordion,
   AccordionContent,
@@ -324,6 +325,7 @@ export function ArtifactReviewPanel({
           setBacklogPersisting(true);
           try {
             await onConfirm(data);
+            notifyProjectBacklogSavedToDatabase(projectId);
             setBacklogConfirmOpen(false);
           } catch (e) {
             setBacklogPersistError(

@@ -25,7 +25,8 @@ export type ProjectRow = {
   project_members?: ProjectMemberRow[] | null;
 };
 
-function mapAiBriefEngagement(
+/** Maps DB `ai_brief_engagement` to workspace state (invalid → undefined). */
+export function mapAiBriefEngagement(
   raw: string | null | undefined
 ): ProjectSummary["aiBriefEngagement"] {
   if (

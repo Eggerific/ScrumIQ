@@ -33,7 +33,8 @@ function subtitleVisible(subtitle: ReactNode | undefined): boolean {
 }
 
 interface PageShellProps {
-  title: string;
+  /** Plain string or JSX (e.g. accent highlight on part of the title). */
+  title: ReactNode;
   /** Omit or leave empty to hide the subtitle line. */
   subtitle?: ReactNode;
   children?: React.ReactNode;
@@ -56,10 +57,7 @@ export function PageShell({
       className={cn("p-6 font-sans md:p-8", className)}
     >
       <motion.div variants={item} className="space-y-2">
-        <h1
-          className="text-2xl font-bold tracking-tight md:text-3xl"
-          style={{ color: "var(--foreground)" }}
-        >
+        <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] md:text-3xl">
           {title}
         </h1>
         <div

@@ -134,15 +134,23 @@ export function ProjectAiFlowView({
   /**
    * Resume artifact review when a session draft exists (after generate, before Add to backlog).
    * Otherwise reset so the input form is available for a project with no draft.
+   * Uses workspace `aiBriefEngagement` as well as localStorage so DB “complete” wins on first paint.
    */
   useLayoutEffect(() => {
     let cancelled = false;
     const id = requestAnimationFrame(() => {
       if (cancelled) return;
-      const eng = readAiBriefEngagement(projectId);
+      const eng =
+        readAiBriefEngagement(projectId) ?? project?.aiBriefEngagement ?? null;
       const stored = readBacklogDraft(projectId);
       const pendingSince = readGenerationPending(projectId);
-      if (stored && eng !== "complete") {
+      if (eng === "complete") {
+        setDraft(null);
+        setGenerationInterrupted(false);
+        clearGenerationPending(projectId);
+        return;
+      }
+      if (stored) {
         setDraft(stored);
         setPhase("artifact-review");
         clearGenerationPending(projectId);
@@ -154,8 +162,7 @@ export function ProjectAiFlowView({
       if (
         pendingSince !== null &&
         Date.now() - pendingSince < GENERATION_PENDING_HINT_MS &&
-        !stored &&
-        eng !== "complete"
+        !stored
       ) {
         setGenerationInterrupted(true);
       } else {
@@ -172,7 +179,7 @@ export function ProjectAiFlowView({
       cancelled = true;
       cancelAnimationFrame(id);
     };
-  }, [projectId]);
+  }, [projectId, project?.aiBriefEngagement]);
 
   useEffect(() => {
     if (phase !== "generating") return;
@@ -202,6 +209,7 @@ export function ProjectAiFlowView({
       return;
     }
     try {
+      // Live: POST /generate-backlog. Mock: client stub — same review step, then POST /backlog on confirm (sprint sync).
       if (aiConfig.mode === "live") {
         const d = await postProjectGenerateBacklog(projectId, payload, {
           signal: AbortSignal.timeout(CLIENT_GENERATION_TIMEOUT_MS),
@@ -312,6 +320,22 @@ export function ProjectAiFlowView({
     phase === "form" &&
     effectiveEngagement !== "complete" &&
     effectiveEngagement !== "skipped";
+
+  useEffect(() => {
+    if (effectiveEngagement !== "complete") return;
+    router.replace(`/projects/${projectId}/backlog`);
+  }, [effectiveEngagement, projectId, router]);
+
+  if (effectiveEngagement === "complete") {
+    return (
+      <PageShell
+        title="AI Generation"
+        subtitle="You already added this project’s AI backlog to the database."
+      >
+        <p className="text-sm text-zinc-500">Opening Backlog…</p>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell

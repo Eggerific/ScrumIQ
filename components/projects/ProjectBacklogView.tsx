@@ -83,9 +83,19 @@ export function ProjectBacklogView({ projectId }: { projectId: string }) {
       <PageShell
         title={`Backlog — ${project.name}`}
         subtitle={
-          project.isCurrentUserOwner
-            ? "No session draft on this page yet — generate from AI, confirm, then refine here."
-            : "No backlog items in your session yet. If the PM has already added work, it will load from the project."
+          project.isCurrentUserOwner ? (
+            <>
+              No session draft on this page yet — that usually means you
+              haven&apos;t run AI Generation for this project, or you haven&apos;t
+              confirmed the draft.{" "}
+              <span className="font-medium text-[var(--app-accent)]">
+                Generate from AI, confirm the backlog, then refine and edit your
+                stories here before adding them to the project.
+              </span>
+            </>
+          ) : (
+            "No backlog items in your session yet. If the PM has already added work, it will load from the project."
+          )
         }
       >
         <BacklogEmptyState
@@ -100,7 +110,11 @@ export function ProjectBacklogView({ projectId }: { projectId: string }) {
   return (
     <PageShell
       title={`Backlog — ${project.name}`}
-      subtitle="Confirmed work from AI Generation. Use + to edit fields; “Add to sprint” on each story is a preview only. Changes save to this session."
+      subtitle={
+        project.isCurrentUserOwner
+          ? "Confirmed work from AI Generation. Use + to edit fields. Add to sprint sends the story to the Sprint page; edits save to this session and sync to the database."
+          : "Confirmed work from AI Generation. Use + to edit fields. Add to sprint sends the story to the Sprint page. Changes save to this session."
+      }
     >
       <div className="mx-auto max-w-[1500px] space-y-8 pb-8">
         <div className="flex flex-wrap items-center gap-4">
@@ -116,6 +130,7 @@ export function ProjectBacklogView({ projectId }: { projectId: string }) {
           key={projectId}
           projectId={projectId}
           initialDraft={draft}
+          isProjectOwner={project.isCurrentUserOwner}
         />
       </div>
     </PageShell>

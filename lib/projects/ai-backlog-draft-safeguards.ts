@@ -58,6 +58,15 @@ export function sanitizeLiveBacklogDraft(
     stories: epic.stories.slice(0, L.MAX_STORIES_PER_EPIC).map((story, si) => ({
       id: clipId(story.id, L.MAX_ID_LEN, `story-${ei}-${si}`),
       title: clip(story.title, L.MAX_STORY_TITLE) || `Story ${si + 1}`,
+      storyPoints:
+        typeof story.storyPoints === "number" &&
+        Number.isInteger(story.storyPoints) &&
+        story.storyPoints >= 1 &&
+        story.storyPoints <= 99
+          ? story.storyPoints
+          : story.storyPoints === null
+            ? null
+            : undefined,
       acceptanceCriteria: story.acceptanceCriteria
         .slice(0, L.MAX_AC_LINES)
         .map((line) => clip(line, L.MAX_AC_LINE_CHARS))
