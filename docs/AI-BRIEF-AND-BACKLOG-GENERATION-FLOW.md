@@ -4,6 +4,8 @@ This document describes the **current end-to-end flow**: structured **project co
 
 **Division of work:** The **UI/UX and navigation** for this flow (routes, forms, review, backlog, engagement) is implemented in the app; a **teammate** owns **AI mock mode**, **JSON parsing**, and wiring real responses into the same payload types (`AiBacklogDraftPayload`, etc.). See [QA-HANDOFF-AI-GENERATION-AND-BACKLOG.md](./QA-HANDOFF-AI-GENERATION-AND-BACKLOG.md) for QA handoff and boundaries.
 
+**User stories & test cases (BDD):** [AI-GENERATION-USER-STORIES-AND-TEST-CASES.md](./AI-GENERATION-USER-STORIES-AND-TEST-CASES.md)
+
 **Related:** [PROJECTS-WORKSPACE.md](./PROJECTS-WORKSPACE.md), [PLANNED-AI-BRIEF-MOCK-RESTORE.md](./PLANNED-AI-BRIEF-MOCK-RESTORE.md) (optional `POST /api/projects/ai-brief` contract for other use cases — **not** on the main backlog path today).
 
 ---
