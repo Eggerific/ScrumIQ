@@ -32,6 +32,7 @@ const FOOTNOTES = [
   "No permanent changes until you confirm — this is your preview pass.",
   "The first draft is a starting line, not the finish.",
   "You’re almost at the fun part: tuning the plan to match reality.",
+  "Stay on this page until we finish — refreshing mid-run can drop the in-flight response.",
 ] as const;
 
 interface BacklogGenerationLoadingStateProps {
