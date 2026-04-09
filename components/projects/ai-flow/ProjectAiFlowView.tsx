@@ -3,7 +3,7 @@
 import { useCallback, useId, useLayoutEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowLeft } from "lucide-react";
 import { PageShell } from "@/components/app/PageShell";
 import type { ProjectAiBriefInput } from "@/lib/projects/ai-brief-types";
 import type { AiBacklogDraftPayload } from "@/lib/projects/ai-backlog-draft-types";
@@ -23,6 +23,7 @@ import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspacePro
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { ArtifactReviewPanel } from "@/components/projects/ai-flow/ArtifactReviewPanel";
 import { AiGenerateConfirmModal } from "@/components/projects/ai-flow/AiGenerateConfirmModal";
+import { BacklogGenerationLoadingState } from "@/components/projects/ai-flow/BacklogGenerationLoadingState";
 import { GreenBeamPanel } from "@/components/projects/ai-flow/GreenBeamPanel";
 import { SECONDARY_BTN_CLASS } from "@/components/projects/ai-flow/flow-constants";
 import { cn } from "@/lib/utils";
@@ -189,7 +190,28 @@ export function ProjectAiFlowView({
   };
 
   const handleConfirmBacklog = useCallback(
-    (finalDraft: AiBacklogDraftPayload) => {
+    async (finalDraft: AiBacklogDraftPayload) => {
+      const res = await fetch(`/api/projects/${projectId}/backlog`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft: finalDraft }),
+      });
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        throw new Error("Invalid response from server.");
+      }
+      if (!res.ok) {
+        const msg =
+          typeof body === "object" &&
+          body !== null &&
+          "error" in body &&
+          typeof (body as { error: unknown }).error === "string"
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
       writeBacklogDraft(projectId, finalDraft);
       writeAiBriefEngagement(projectId, "complete");
       updateProject(projectId, { aiBriefEngagement: "complete" });
@@ -407,23 +429,8 @@ export function ProjectAiFlowView({
       ) : null}
 
       {phase === "generating" ? (
-        <GreenBeamPanel className="mx-auto max-w-lg">
-          <div
-            className="flex flex-col items-center py-16"
-            aria-busy
-            aria-live="polite"
-          >
-          <Loader2
-            className="h-12 w-12 animate-spin text-[var(--app-accent)]"
-            aria-hidden
-          />
-          <p className="mt-6 text-center text-base font-medium text-[var(--foreground)]">
-            Generating epics, user stories, and tasks…
-          </p>
-          <p className="mt-2 text-center text-base text-zinc-400">
-            This usually takes a few seconds.
-          </p>
-          </div>
+        <GreenBeamPanel className="mx-auto max-w-2xl">
+          <BacklogGenerationLoadingState projectName={projectName} />
         </GreenBeamPanel>
       ) : null}
 
@@ -431,6 +438,7 @@ export function ProjectAiFlowView({
         <ArtifactReviewPanel
           initialDraft={draft}
           projectId={projectId}
+          projectName={projectName}
           onConfirm={handleConfirmBacklog}
         />
       ) : null}
