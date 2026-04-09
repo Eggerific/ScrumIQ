@@ -6,8 +6,6 @@ import { ArrowLeft } from "lucide-react";
 import { PageShell } from "@/components/app/PageShell";
 import type { AiBacklogDraftPayload } from "@/lib/projects/ai-backlog-draft-types";
 import { readBacklogDraft } from "@/lib/projects/backlog-draft-storage";
-import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
-import { reconcileStaleCompleteEngagement } from "@/lib/projects/ai-brief-engagement-reconcile";
 import { fetchProjectBacklogDraftFromDb } from "@/lib/projects/fetch-project-backlog-draft";
 import { createClient } from "@/lib/supabase/client";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
@@ -17,7 +15,7 @@ import { BacklogEmptyState } from "@/components/projects/BacklogEmptyState";
 
 export function ProjectBacklogView({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const { projects, projectsHydrated, updateProject } = useProjectsWorkspace();
+  const { projects, projectsHydrated } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
 
   const sessionDraft = useMemo(
@@ -46,16 +44,6 @@ export function ProjectBacklogView({ projectId }: { projectId: string }) {
 
   const draft =
     sessionDraft !== null ? sessionDraft : dbDraft;
-
-  useEffect(() => {
-    if (!projectsHydrated || !project) return;
-    const eng =
-      project.aiBriefEngagement ?? readAiBriefEngagement(projectId) ?? undefined;
-    const { changed, next } = reconcileStaleCompleteEngagement(projectId, eng);
-    if (changed && next === "dismissed") {
-      updateProject(projectId, { aiBriefEngagement: "dismissed" });
-    }
-  }, [projectsHydrated, projectId, project, updateProject]);
 
   if (!projectsHydrated) {
     return (

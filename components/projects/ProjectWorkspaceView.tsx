@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { FileText, ListTodo, UserPlus } from "lucide-react";
 import { PageShell } from "@/components/app/PageShell";
 import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
-import { reconcileStaleCompleteEngagement } from "@/lib/projects/ai-brief-engagement-reconcile";
 import { useHasBacklogDraft } from "@/hooks/use-has-backlog-draft";
 import { InviteMemberModal } from "./InviteMemberModal";
 import { useProjectsWorkspace } from "./ProjectsWorkspaceProvider";
@@ -34,17 +33,6 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
     const stored = readAiBriefEngagement(project.id);
     if (stored) {
       updateProject(project.id, { aiBriefEngagement: stored });
-    }
-  }, [projectsHydrated, project, updateProject]);
-
-  // `complete` in localStorage but session backlog draft missing (new session) → allow AI again.
-  useEffect(() => {
-    if (!projectsHydrated || !project) return;
-    const eng =
-      project.aiBriefEngagement ?? readAiBriefEngagement(project.id) ?? undefined;
-    const { changed, next } = reconcileStaleCompleteEngagement(project.id, eng);
-    if (changed && next === "dismissed") {
-      updateProject(project.id, { aiBriefEngagement: "dismissed" });
     }
   }, [projectsHydrated, project, updateProject]);
 

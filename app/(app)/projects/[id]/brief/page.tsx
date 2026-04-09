@@ -5,17 +5,17 @@ import { useParams, useRouter } from "next/navigation";
 import { PageShell } from "@/components/app/PageShell";
 import { ProjectAiFlowView } from "@/components/projects/ai-flow/ProjectAiFlowView";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
-import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
-import { reconcileStaleCompleteEngagement } from "@/lib/projects/ai-brief-engagement-reconcile";
-import { useHasBacklogDraft } from "@/hooks/use-has-backlog-draft";
+import {
+  readAiBriefEngagement,
+  writeAiBriefEngagement,
+} from "@/lib/projects/ai-brief-storage";
 
 export default function ProjectBriefPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = typeof params.id === "string" ? params.id : "";
-  const { projects, projectsHydrated, updateProject } = useProjectsWorkspace();
+  const { projects, projectsHydrated } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
-  const hasBacklogDraft = useHasBacklogDraft(projectId || null);
 
   const storedEngagement = useMemo(() => {
     if (typeof window === "undefined" || !projectId) return null;
@@ -25,27 +25,25 @@ export default function ProjectBriefPage() {
   const effectiveEngagement =
     project?.aiBriefEngagement ?? storedEngagement ?? undefined;
 
+  /** Keep localStorage aligned with DB after refresh (single source of truth: Supabase). */
   useEffect(() => {
-    if (!projectsHydrated || !projectId || !project) return;
-    const eng =
-      project.aiBriefEngagement ?? readAiBriefEngagement(projectId) ?? undefined;
-    const { changed, next } = reconcileStaleCompleteEngagement(projectId, eng);
-    if (changed && next === "dismissed") {
-      updateProject(projectId, { aiBriefEngagement: "dismissed" });
+    if (!projectId || !project?.aiBriefEngagement) return;
+    const stored = readAiBriefEngagement(projectId);
+    if (stored !== project.aiBriefEngagement) {
+      writeAiBriefEngagement(projectId, project.aiBriefEngagement);
     }
-  }, [projectsHydrated, projectId, project, updateProject]);
+  }, [projectId, project?.aiBriefEngagement]);
 
+  /** Completed AI flow + backlog saved → always open Backlog, not a new generation session. */
   useEffect(() => {
-    if (!projectsHydrated || !projectId || !project) return;
-    if (effectiveEngagement === "complete" && hasBacklogDraft) {
-      router.replace(`/projects/${projectId}/backlog`);
-    }
+    if (!projectsHydrated || !projectId || !project?.isCurrentUserOwner) return;
+    if (effectiveEngagement !== "complete") return;
+    router.replace(`/projects/${projectId}/backlog`);
   }, [
     projectsHydrated,
     projectId,
-    project,
+    project?.isCurrentUserOwner,
     effectiveEngagement,
-    hasBacklogDraft,
     router,
   ]);
 
@@ -57,11 +55,16 @@ export default function ProjectBriefPage() {
     );
   }
 
-  if (projectId && project && effectiveEngagement === "complete" && hasBacklogDraft) {
+  if (
+    projectId &&
+    project &&
+    project.isCurrentUserOwner &&
+    effectiveEngagement === "complete"
+  ) {
     return (
       <PageShell
         title="AI Generation"
-        subtitle="Your backlog draft is in this session. Opening the backlog…"
+        subtitle="You already added this project’s AI backlog. Opening Backlog…"
       >
         <p className="text-sm text-zinc-500">Redirecting…</p>
       </PageShell>

@@ -11,9 +11,9 @@ export const PROJECT_ROLE_LABELS: Record<ProjectRoleTag, string> = {
 
 /**
  * `pending` — new project: auto-open brief once until user acts.
- * `dismissed` — closed with X/backdrop; can reopen from the page (not stuck).
- * `complete` — finished via “Continue to project”; can still reopen preview.
- * `skipped` — legacy; can reopen explainer from the page.
+ * `dismissed` — skipped onboarding; can open AI Generation from the sidebar.
+ * `complete` — AI backlog was saved to the project; brief flow redirects to Backlog (persisted in DB + localStorage).
+ * `skipped` — legacy; treated like dismissed for navigation.
  */
 export type AiBriefEngagement =
   | "pending"

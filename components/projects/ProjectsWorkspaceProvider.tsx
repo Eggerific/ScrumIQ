@@ -122,37 +122,30 @@ export function ProjectsWorkspaceProvider({ children }: { children: ReactNode })
 
   const handleConfirmRemoveProject = useCallback(
     async (project: ProjectSummary) => {
-      const supabase = createClient();
-
-      const { error: membersError } = await supabase
-        .from("project_members")
-        .delete()
-        .eq("project_id", project.id);
-
-      if (membersError) {
-        console.error("Supabase delete project_members:", membersError.message);
-        setProjectsLoadError(
-          `Could not remove project: ${membersError.message}`
-        );
+      try {
+        const res = await fetch(`/api/projects/${project.id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        if (!res.ok) {
+          const message = body.error ?? `HTTP ${res.status}`;
+          console.error("Delete project:", message);
+          setProjectsLoadError(`Could not remove project: ${message}`);
+          setRemoveTarget(null);
+          return;
+        }
+        removeProject(project.id);
         setRemoveTarget(null);
-        return;
-      }
-
-      const { error } = await supabase
-        .from("projects")
-        .delete()
-        .eq("id", project.id);
-
-      if (error) {
-        console.error("Supabase delete project:", error.message);
-        setProjectsLoadError(`Could not remove project: ${error.message}`);
+        setProjectsLoadError(null);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Network error";
+        console.error("Delete project:", e);
+        setProjectsLoadError(`Could not remove project: ${message}`);
         setRemoveTarget(null);
-        return;
       }
-
-      removeProject(project.id);
-      setRemoveTarget(null);
-      setProjectsLoadError(null);
     },
     [removeProject]
   );

@@ -71,6 +71,23 @@ These can be found in:
 
 See `docs/PROJECTS-WORKSPACE.md` for the **brief explainer** on first project open (planned fields; API not used by the UI yet).
 
+### Supabase: AI Generation completion (required for production)
+
+The app stores **`projects.ai_brief_engagement`** in Postgres so “Add to backlog” stays final after restarts and new browsers. Apply the migration in your Supabase project:
+
+- **SQL:** `supabase/migrations/20260408120000_add_projects_ai_brief_engagement.sql`  
+  Run the file contents in **SQL Editor** (or your usual migration workflow).
+
+Without this column, **creating projects** and **finalizing AI backlog** may fail until the migration is applied.
+
+### Supabase: removing a project (`epics_project_id_fkey`)
+
+**Cause:** With RLS, client-side **`DELETE`** plus **`SELECT` count checks** can both look “empty” while rows still exist (e.g. **`SELECT`** policies hide backlog rows), so the app deletes **`projects`** too early and Postgres raises **`epics_project_id_fkey`**.
+
+**Fix (required):** Run **`supabase/migrations/20260409140000_rpc_delete_project_for_owner.sql`**. It adds **`public.delete_project_for_owner(uuid)`**, a **`SECURITY DEFINER`** RPC that deletes **`tasks` → `stories` → `epics` → `project_members` → `projects`** in one transaction after verifying **`auth.uid()`** is the project **owner**. The app calls this RPC only; it does **not** rely on per-table **`DELETE`** policies for removal.
+
+**Optional:** **`20260409130000_rls_backlog_delete_via_is_project_owner.sql`** improves owner **`DELETE`** policies if you still delete backlog rows from the client elsewhere. It does **not** replace the RPC for “remove project.”
+
 ### Keeping AI costs down (students & side projects)
 
 - Use **`SCRUMIQ_AI_MODE=mock`** (or leave unset) while building UI—no Anthropic charges.
