@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageShell } from "@/components/app/PageShell";
 import { ProjectAiFlowView } from "@/components/projects/ai-flow/ProjectAiFlowView";
@@ -9,18 +9,82 @@ import {
   readAiBriefEngagement,
   writeAiBriefEngagement,
 } from "@/lib/projects/ai-brief-storage";
+import { createClient } from "@/lib/supabase/client";
+import { healStalePendingAiBriefEngagement } from "@/lib/projects/heal-stale-ai-brief-engagement";
+import { mapAiBriefEngagement } from "@/lib/projects/supabase-projects";
 
 export default function ProjectBriefPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = typeof params.id === "string" ? params.id : "";
-  const { projects, projectsHydrated } = useProjectsWorkspace();
+  const { projects, projectsHydrated, updateProject } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
 
   const storedEngagement = useMemo(() => {
     if (typeof window === "undefined" || !projectId) return null;
     return readAiBriefEngagement(projectId);
   }, [projectId]);
+
+  /**
+   * Fetch `ai_brief_engagement` when workspace shows unknown or stale `pending`.
+   * If the DB still says `pending` but stories exist (saved backlog), heal to `complete`.
+   */
+  const [engagementFromDbResolved, setEngagementFromDbResolved] = useState(false);
+
+  useEffect(() => {
+    if (!projectsHydrated || !projectId || !project) {
+      setEngagementFromDbResolved(false);
+      return;
+    }
+    if (
+      project.aiBriefEngagement !== undefined &&
+      project.aiBriefEngagement !== "pending"
+    ) {
+      setEngagementFromDbResolved(true);
+      return;
+    }
+    let cancelled = false;
+    setEngagementFromDbResolved(false);
+    const supabase = createClient();
+    void (async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("ai_brief_engagement")
+        .eq("id", projectId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        setEngagementFromDbResolved(true);
+        return;
+      }
+      const raw = data.ai_brief_engagement as string | null | undefined;
+      let mapped = mapAiBriefEngagement(raw);
+
+      if (mapped === "pending") {
+        const healed = await healStalePendingAiBriefEngagement(
+          supabase,
+          projectId,
+          raw
+        );
+        mapped = healed.engagement;
+        if (healed.healed && mapped === "complete") {
+          updateProject(projectId, { aiBriefEngagement: "complete" });
+          writeAiBriefEngagement(projectId, "complete");
+          setEngagementFromDbResolved(true);
+          return;
+        }
+      }
+
+      if (mapped !== undefined) {
+        updateProject(projectId, { aiBriefEngagement: mapped });
+        writeAiBriefEngagement(projectId, mapped);
+      }
+      setEngagementFromDbResolved(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectsHydrated, projectId, project?.id, project?.aiBriefEngagement, updateProject]);
 
   const effectiveEngagement =
     project?.aiBriefEngagement ?? storedEngagement ?? undefined;
@@ -51,6 +115,22 @@ export default function ProjectBriefPage() {
     return (
       <PageShell title="AI Generation" subtitle="Loading workspace…">
         <p className="text-sm text-zinc-500">Loading…</p>
+      </PageShell>
+    );
+  }
+
+  if (
+    project &&
+    (project.aiBriefEngagement === undefined ||
+      project.aiBriefEngagement === "pending") &&
+    !engagementFromDbResolved
+  ) {
+    return (
+      <PageShell
+        title="AI Generation"
+        subtitle="Loading project state…"
+      >
+        <p className="text-sm text-zinc-500">Checking AI Generation status…</p>
       </PageShell>
     );
   }

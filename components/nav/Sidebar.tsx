@@ -200,7 +200,11 @@ export function Sidebar({ fullName, email }: SidebarProps) {
                   const isBrief = item.href.endsWith("/brief");
                   const isOwner = currentWorkspaceProject?.isCurrentUserOwner ?? false;
                   const aiGenDisabledInvitee = isBrief && !isOwner;
-                  const aiGenLocked = isBrief && isOwner && hasBacklogDraft;
+                  /** Lock when backlog was saved to DB or a session draft still exists (owner). */
+                  const aiGenLocked =
+                    isBrief &&
+                    isOwner &&
+                    (hasBacklogDraft || effectiveAiEngagement === "complete");
                   const aiGenDisabledTitle =
                     effectiveAiEngagement === "complete"
                       ? AI_GENERATION_DISABLED_AFTER_CONFIRM

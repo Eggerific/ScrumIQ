@@ -18,6 +18,8 @@ type StoryRow = {
   epic_id: string;
   title: string;
   acceptance_criteria: string | null;
+  story_points: number | null;
+  in_sprint: boolean | null;
 };
 
 type TaskRow = {
@@ -44,7 +46,7 @@ export async function fetchProjectBacklogDraftFromDb(
 
   const { data: storyRows, error: storyErr } = await supabase
     .from("stories")
-    .select("id, epic_id, title, acceptance_criteria")
+    .select("id, epic_id, title, acceptance_criteria, story_points, in_sprint")
     .eq("project_id", projectId)
     .order("priority", { ascending: true });
 
@@ -69,6 +71,8 @@ export async function fetchProjectBacklogDraftFromDb(
       stories: storiesForEpic.map((s) => ({
         id: s.id,
         title: s.title,
+        storyPoints: s.story_points,
+        inSprint: Boolean(s.in_sprint),
         acceptanceCriteria: acFromPersistedText(s.acceptance_criteria ?? ""),
         tasks: (taskRows as TaskRow[])
           .filter((t) => t.story_id === s.id)

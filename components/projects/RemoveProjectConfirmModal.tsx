@@ -11,17 +11,24 @@ const easeSmooth = [0.25, 0.1, 0.25, 1] as const;
 
 interface RemoveProjectConfirmModalProps {
   project: ProjectSummary | null;
+  /** Set when DELETE fails; dialog stays open so the user can read it and dismiss. */
+  error?: {
+    message: string;
+    variant: "caution" | "destructive";
+  } | null;
   onCancel: () => void;
   onConfirm: (project: ProjectSummary) => void | Promise<void>;
 }
 
 export function RemoveProjectConfirmModal({
   project,
+  error,
   onCancel,
   onConfirm,
 }: RemoveProjectConfirmModalProps) {
   const titleId = useId();
   const descId = useId();
+  const errorId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [removing, setRemoving] = useState(false);
   const mounted = typeof document !== "undefined";
@@ -84,7 +91,9 @@ export function RemoveProjectConfirmModal({
             role="alertdialog"
             aria-modal
             aria-labelledby={titleId}
-            aria-describedby={descId}
+            aria-describedby={
+              error?.message ? `${descId} ${errorId}` : descId
+            }
             className="relative z-10 w-full max-w-md rounded-t-2xl border border-[var(--app-sidebar-border)] bg-[var(--auth-card)] shadow-[0_-8px_40px_-12px_rgba(0,0,0,0.5)] sm:rounded-2xl sm:shadow-2xl"
             initial={{ opacity: 0, y: 40, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -119,6 +128,25 @@ export function RemoveProjectConfirmModal({
                 <X className="h-5 w-5" aria-hidden />
               </button>
             </div>
+            {error?.message ? (
+              <div
+                id={errorId}
+                role="alert"
+                className={cn(
+                  "border-t px-5 py-3 text-sm leading-relaxed",
+                  error.variant === "caution"
+                    ? "border-amber-500/25 bg-amber-500/8 text-amber-100/95"
+                    : "border-red-500/25 bg-red-500/8 text-red-100/95"
+                )}
+              >
+                <p className="font-medium">
+                  {error.variant === "caution"
+                    ? "Can’t remove this project"
+                    : "Something went wrong"}
+                </p>
+                <p className="mt-1.5 text-[13px] opacity-95">{error.message}</p>
+              </div>
+            ) : null}
             <div className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
               <button
                 ref={cancelRef}

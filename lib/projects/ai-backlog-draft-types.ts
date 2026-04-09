@@ -10,6 +10,10 @@ export interface AiGeneratedTask {
 export interface AiGeneratedStory {
   id: string;
   title: string;
+  /** Persisted in DB as `story_points` (int2); null when not estimated. */
+  storyPoints?: number | null;
+  /** When true, story is committed to the current sprint (`stories.in_sprint`). */
+  inSprint?: boolean;
   acceptanceCriteria: string[];
   tasks: AiGeneratedTask[];
 }

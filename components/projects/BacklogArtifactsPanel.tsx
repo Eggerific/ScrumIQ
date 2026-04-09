@@ -1,14 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Check,
   ChevronRight,
   GitBranch,
   Kanban,
   ListChecks,
   ListTodo,
+  Loader2,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -35,7 +43,13 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { createClient } from "@/lib/supabase/client";
+import { fetchProjectSprintStories } from "@/lib/projects/fetch-project-sprint-stories";
 import { writeBacklogDraft } from "@/lib/projects/backlog-draft-storage";
+import { patchStory } from "@/lib/projects/patch-story-client";
+import { postProjectBacklogDraft } from "@/lib/projects/post-project-backlog-client";
+import { notifyProjectBacklogSavedToDatabase } from "@/lib/projects/project-stories-sync-events";
+import { setSprintStoriesCache } from "@/lib/projects/sprint-stories-session-cache";
 import { ExpandableBacklogText } from "@/components/projects/ExpandableBacklogText";
 import { GreenBeamPanel } from "@/components/projects/ai-flow/GreenBeamPanel";
 import { SECONDARY_BTN_CLASS } from "@/components/projects/ai-flow/flow-constants";
@@ -56,6 +70,7 @@ function emptyStory(): AiGeneratedStory {
   return {
     id: newId(),
     title: "New user story",
+    inSprint: false,
     acceptanceCriteria: [""],
     tasks: [emptyTask()],
   };
@@ -92,11 +107,14 @@ const txTask =
 export interface BacklogArtifactsPanelProps {
   initialDraft: AiBacklogDraftPayload;
   projectId: string;
+  /** When true, edits are debounced to POST /backlog so Sprint and DB stay in sync. */
+  isProjectOwner?: boolean;
 }
 
 export function BacklogArtifactsPanel({
   initialDraft,
   projectId,
+  isProjectOwner = false,
 }: BacklogArtifactsPanelProps) {
   const [data, setData] = useState<AiBacklogDraftPayload>(() =>
     structuredClone(initialDraft)
@@ -111,6 +129,62 @@ export function BacklogArtifactsPanel({
     }, 450);
     return () => window.clearTimeout(t);
   }, [data, projectId]);
+
+  const lastSavedJsonRef = useRef(JSON.stringify(initialDraft));
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const [dbSyncState, setDbSyncState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [dbSyncError, setDbSyncError] = useState<string | null>(null);
+  const [addingToSprintId, setAddingToSprintId] = useState<string | null>(null);
+  const [sprintFeedback, setSprintFeedback] = useState<{
+    kind: "success" | "error";
+    message: ReactNode;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!sprintFeedback) return;
+    const t = window.setTimeout(() => setSprintFeedback(null), 6500);
+    return () => window.clearTimeout(t);
+  }, [sprintFeedback]);
+
+  useEffect(() => {
+    if (!isProjectOwner || !projectId) return;
+    if (data.epics.length === 0) return;
+
+    const json = JSON.stringify(data);
+    if (json === lastSavedJsonRef.current) return;
+
+    setDbSyncState("idle");
+    const t = window.setTimeout(() => {
+      void (async () => {
+        const payload = dataRef.current;
+        const snapshot = JSON.stringify(payload);
+        if (snapshot === lastSavedJsonRef.current) return;
+
+        setDbSyncState("saving");
+        setDbSyncError(null);
+        const result = await postProjectBacklogDraft(projectId, payload);
+        if (result.ok) {
+          if (JSON.stringify(dataRef.current) === snapshot) {
+            lastSavedJsonRef.current = snapshot;
+            writeBacklogDraft(projectId, payload);
+            notifyProjectBacklogSavedToDatabase(projectId);
+            setDbSyncState("saved");
+            window.setTimeout(() => setDbSyncState("idle"), 2200);
+          } else {
+            setDbSyncState("idle");
+          }
+        } else {
+          setDbSyncState("error");
+          setDbSyncError(result.message);
+        }
+      })();
+    }, 1400);
+
+    return () => window.clearTimeout(t);
+  }, [data, isProjectOwner, projectId]);
 
   const updateEpic = useCallback((epicId: string, patch: Partial<AiGeneratedEpic>) => {
     setData((d) => ({
@@ -298,6 +372,53 @@ export function BacklogArtifactsPanel({
     []
   );
 
+  const handleAddToSprint = useCallback(
+    async (epicId: string, story: AiGeneratedStory) => {
+      if (story.inSprint) return;
+      setAddingToSprintId(story.id);
+      setSprintFeedback(null);
+      const result = await patchStory(projectId, story.id, { in_sprint: true });
+      setAddingToSprintId(null);
+      if (!result.ok) {
+        const msg =
+          result.message.toLowerCase().includes("not found") ||
+          result.message.includes("404")
+            ? "This story isn’t in the project yet. Wait a few seconds for the backlog to finish saving, then try again."
+            : result.message;
+        setSprintFeedback({ kind: "error", message: msg });
+        return;
+      }
+      updateStory(epicId, story.id, { inSprint: true });
+      notifyProjectBacklogSavedToDatabase(projectId);
+      void (async () => {
+        const supabase = createClient();
+        const rows = await fetchProjectSprintStories(supabase, projectId);
+        if (rows) setSprintStoriesCache(projectId, rows);
+      })();
+      const label = story.title.trim() || "Story";
+      const short = label.length > 72 ? `${label.slice(0, 69)}…` : label;
+      setSprintFeedback({
+        kind: "success",
+        message: (
+          <span className="flex gap-2.5">
+            <Check
+              className="mt-0.5 size-4 shrink-0 text-[var(--app-accent)]"
+              aria-hidden
+            />
+            <span>
+              <span className="font-medium">Added to sprint.</span>{" "}
+              <q className="text-emerald-100/90">{short}</q>
+              <span className="mt-1 block text-[13px] text-emerald-100/80">
+                Open Sprint from the sidebar when you&apos;re ready.
+              </span>
+            </span>
+          </span>
+        ),
+      });
+    },
+    [projectId, updateStory]
+  );
+
   return (
     <div className="mx-auto max-w-[1500px] space-y-10 pb-8">
       <motion.div
@@ -319,9 +440,26 @@ export function BacklogArtifactsPanel({
               </div>
               <p className="mt-4 max-w-3xl text-base leading-relaxed text-muted-foreground md:text-[1.05rem]">
                 Click the + beside a field to expand and edit. Each story has an
-                &quot;Add to sprint&quot; control (preview only). Changes save
-                to this browser session.
+                &quot;Add to sprint&quot; control that sends it to the Sprint
+                page. Changes save to this browser session
+                {isProjectOwner
+                  ? " and, for project owners, to the database so Sprint stays up to date."
+                  : "."}
               </p>
+              {sprintFeedback ? (
+                <div
+                  role={sprintFeedback.kind === "error" ? "alert" : "status"}
+                  aria-live="polite"
+                  className={cn(
+                    "mt-4 max-w-3xl rounded-xl border px-4 py-3 text-sm leading-relaxed",
+                    sprintFeedback.kind === "success"
+                      ? "border-[var(--app-accent)]/40 bg-[color-mix(in_oklch,var(--app-accent),transparent_90%)] text-emerald-50/95"
+                      : "border-red-500/35 bg-red-950/45 text-red-100/95"
+                  )}
+                >
+                  {sprintFeedback.message}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -431,15 +569,44 @@ export function BacklogArtifactsPanel({
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        disabled
-                                        title="Sprint planning coming soon"
-                                        className="h-7 shrink-0 gap-1 rounded-full border-dashed border-zinc-500/50 px-2.5 text-xs font-medium text-zinc-400"
+                                        disabled={
+                                          Boolean(story.inSprint) ||
+                                          addingToSprintId === story.id
+                                        }
+                                        title={
+                                          story.inSprint
+                                            ? "Already in this sprint"
+                                            : "Add this story to the sprint (same data the Kanban board will use later)"
+                                        }
+                                        onClick={() =>
+                                          void handleAddToSprint(epic.id, story)
+                                        }
+                                        className={cn(
+                                          "h-7 shrink-0 gap-1 rounded-full px-2.5 text-xs font-medium",
+                                          story.inSprint
+                                            ? "border-[var(--app-accent)]/45 bg-[color-mix(in_oklch,var(--app-accent),transparent_88%)] text-emerald-100"
+                                            : "border-[var(--app-accent)]/35 text-emerald-100/95 hover:bg-[color-mix(in_oklch,var(--app-accent),transparent_82%)]"
+                                        )}
                                       >
-                                        <GitBranch
-                                          className="size-3.5 opacity-70"
-                                          aria-hidden
-                                        />
-                                        Add to sprint
+                                        {addingToSprintId === story.id ? (
+                                          <Loader2
+                                            className="size-3.5 animate-spin"
+                                            aria-hidden
+                                          />
+                                        ) : story.inSprint ? (
+                                          <Check
+                                            className="size-3.5"
+                                            aria-hidden
+                                          />
+                                        ) : (
+                                          <GitBranch
+                                            className="size-3.5 opacity-90"
+                                            aria-hidden
+                                          />
+                                        )}
+                                        {story.inSprint
+                                          ? "In sprint"
+                                          : "Add to sprint"}
                                       </Button>
                                       <span className="inline-flex h-7 w-7 items-center justify-center">
                                         <Button
@@ -670,9 +837,27 @@ export function BacklogArtifactsPanel({
         transition={{ delay: 0.15 }}
         className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
       >
-        <p className="text-sm text-muted-foreground">
-          Session draft — edits sync to this tab automatically.
-        </p>
+        <div className="text-sm text-muted-foreground">
+          <p>Session draft — edits sync to this tab automatically.</p>
+          {isProjectOwner ? (
+            <p className="mt-1.5 text-xs text-zinc-500">
+              {dbSyncState === "saving" ? (
+                <span className="text-zinc-400">Saving to database…</span>
+              ) : dbSyncState === "saved" ? (
+                <span className="text-[var(--app-accent)]/90">Saved to project</span>
+              ) : dbSyncState === "error" && dbSyncError ? (
+                <span className="text-red-300/95" role="alert">
+                  Couldn&apos;t save to database: {dbSyncError}
+                </span>
+              ) : (
+                <span>
+                  Database sync runs shortly after you stop typing (project
+                  owners only).
+                </span>
+              )}
+            </p>
+          ) : null}
+        </div>
         <Link
           href={`/projects/${projectId}`}
           className={`${SECONDARY_BTN_CLASS} inline-flex shrink-0 items-center justify-center`}
