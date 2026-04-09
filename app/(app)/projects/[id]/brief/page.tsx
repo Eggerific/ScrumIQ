@@ -85,6 +85,27 @@ export default function ProjectBriefPage() {
     );
   }
 
+  if (!project.isCurrentUserOwner) {
+    return (
+      <PageShell
+        title="AI Generation"
+        subtitle="Only the project creator can run AI Generation and add items to the backlog."
+      >
+        <p className="max-w-md text-sm text-zinc-500">
+          Ask the project manager to generate the backlog. You can use Backlog,
+          Sprint, and Kanban in the sidebar once work items exist.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push(`/projects/${projectId}`)}
+          className="mt-6 rounded-lg border border-[var(--app-sidebar-border)] px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:bg-[var(--app-nav-hover-bg)]"
+        >
+          Back to project
+        </button>
+      </PageShell>
+    );
+  }
+
   return (
     <ProjectAiFlowView projectId={project.id} projectName={project.name} />
   );

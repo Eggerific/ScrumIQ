@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { UserPlus, X, Search, ChevronDown, Loader2, UserCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { checkInviteeProjectCapacity } from "@/lib/projects/invite-capacity-check";
+import { MAX_PROJECTS_ON_WORKSPACE_LIST } from "@/lib/projects/constants";
 
 const easeSmooth = [0.25, 0.1, 0.25, 1] as const;
 
@@ -49,6 +51,8 @@ export function InviteMemberModal({
   const [inviting, setInviting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [capacityLoading, setCapacityLoading] = useState(false);
+  const [capacityBlocked, setCapacityBlocked] = useState(false);
 
   // Reset all state when modal closes
   useEffect(() => {
@@ -61,6 +65,8 @@ export function InviteMemberModal({
       setInviting(false);
       setSuccess(false);
       setError(null);
+      setCapacityLoading(false);
+      setCapacityBlocked(false);
       return;
     }
     const prev = document.body.style.overflow;
@@ -80,6 +86,38 @@ export function InviteMemberModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onOpenChange]);
+
+  useEffect(() => {
+    if (!open || !selected) {
+      setCapacityLoading(false);
+      setCapacityBlocked(false);
+      return;
+    }
+    let cancelled = false;
+    setCapacityLoading(true);
+    setCapacityBlocked(false);
+    setError(null);
+    const supabase = createClient();
+    void checkInviteeProjectCapacity(supabase, selected.id, projectId).then(
+      (result) => {
+        if (cancelled) return;
+        setCapacityLoading(false);
+        if (result.allowed) {
+          setCapacityBlocked(false);
+          return;
+        }
+        if (result.code === "at_project_limit") {
+          setCapacityBlocked(true);
+          return;
+        }
+        setCapacityBlocked(false);
+        setError(result.message);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selected, projectId]);
 
   // Debounced search against the users table
   useEffect(() => {
@@ -156,6 +194,18 @@ export function InviteMemberModal({
         return;
       }
 
+      const capacity = await checkInviteeProjectCapacity(
+        supabase,
+        selected.id,
+        projectId
+      );
+      if (!capacity.allowed) {
+        setError(capacity.message);
+        setCapacityBlocked(capacity.code === "at_project_limit");
+        setInviting(false);
+        return;
+      }
+
       const { error: insertError } = await supabase
         .from("project_members")
         .insert({
@@ -166,7 +216,17 @@ export function InviteMemberModal({
 
       if (insertError) {
         console.error("Insert error:", insertError.message);
-        setError("Failed to add member. Please try again.");
+        if (
+          insertError.message.includes("project_member_limit") ||
+          insertError.code === "P0001"
+        ) {
+          setError(
+            `This person already has the maximum of ${MAX_PROJECTS_ON_WORKSPACE_LIST} active projects. They need to leave another project before joining this one.`
+          );
+          setCapacityBlocked(true);
+        } else {
+          setError("Failed to add member. Please try again.");
+        }
         return;
       }
 
@@ -348,8 +408,10 @@ export function InviteMemberModal({
                         className="text-center text-sm text-zinc-500 py-2"
                       >
                         No users found matching{" "}
-                        <span className="text-zinc-300">"{query}"</span> — or
-                        they're already a member.
+                        <span className="text-zinc-300">
+                          {`\u201c${query}\u201d`}
+                        </span>{" "}
+                        — or they are already a member.
                       </motion.p>
                     ) : null}
                   </AnimatePresence>
@@ -422,6 +484,16 @@ export function InviteMemberModal({
                     ) : null}
                   </AnimatePresence>
 
+                  {selected && capacityBlocked ? (
+                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-100/90">
+                      <span className="font-medium">{selected.full_name}</span>{" "}
+                      already has the maximum of{" "}
+                      {MAX_PROJECTS_ON_WORKSPACE_LIST} active projects. They
+                      need to leave another project before they can join this
+                      one.
+                    </p>
+                  ) : null}
+
                   {error ? (
                     <p className="text-sm text-red-400" role="alert">
                       {error}
@@ -446,19 +518,28 @@ export function InviteMemberModal({
                   <button
                     type="button"
                     onClick={confirmInvite}
-                    disabled={!selected || inviting}
+                    disabled={
+                      !selected ||
+                      inviting ||
+                      capacityLoading ||
+                      capacityBlocked
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45"
                     style={{
                       background: "var(--app-accent)",
                       color: "var(--background)",
                     }}
                   >
-                    {inviting ? (
+                    {inviting || capacityLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                     ) : (
                       <UserPlus className="h-4 w-4" aria-hidden />
                     )}
-                    {inviting ? "Adding…" : "Add to project"}
+                    {inviting
+                      ? "Adding…"
+                      : capacityLoading
+                        ? "Checking…"
+                        : "Add to project"}
                   </button>
                 </div>
               </div>

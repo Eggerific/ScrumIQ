@@ -138,6 +138,7 @@ export function CreateProjectModal({
           "bg-emerald-500",
         updatedLabel: "Just now",
         roleTag: creatorMemberRole,
+        isCurrentUserOwner: true,
         aiBriefEngagement: "pending",
       };
 

@@ -48,9 +48,10 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
     }
   }, [projectsHydrated, project, updateProject]);
 
-  // New projects (`pending`): send straight into the AI brief flow once.
+  // New projects (`pending`): send the creator into the AI brief flow once.
   useEffect(() => {
     if (!projectsHydrated || !project) return;
+    if (!project.isCurrentUserOwner) return;
     if (project.aiBriefEngagement !== "pending") return;
     router.replace(`/projects/${project.id}/brief`);
   }, [projectsHydrated, project, router]);
@@ -81,13 +82,18 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
   }
 
   const showBacklogLink =
-    hasDraft || engagement === "complete";
+    hasDraft || engagement === "complete" || !project.isCurrentUserOwner;
   const showResumeAiLink =
-    (engagement === "dismissed" || engagement === "skipped") && !hasDraft;
+    project.isCurrentUserOwner &&
+    (engagement === "dismissed" || engagement === "skipped") &&
+    !hasDraft;
 
   let subtitle =
     "Use the sidebar for AI Generation, Backlog, Sprint, Kanban, and Team.";
-  if (hasDraft && engagement !== "complete") {
+  if (!project.isCurrentUserOwner) {
+    subtitle =
+      "You’re a team member on this project. Open Backlog, Sprint, or Kanban from the sidebar — only the creator can run AI Generation.";
+  } else if (hasDraft && engagement !== "complete") {
     subtitle =
       "You have a generated draft in this session — open Backlog to review and edit. AI Generation is closed until that draft is cleared.";
   } else if (engagement === "pending") {
@@ -118,7 +124,8 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
     <>
       <PageShell title={project.name} subtitle={subtitle}>
         <div className="flex flex-wrap items-center gap-3">
-          {project.aiBriefEngagement === "pending" ? (
+          {project.isCurrentUserOwner &&
+          project.aiBriefEngagement === "pending" ? (
             <p className="text-sm text-[var(--app-text-muted)]">
               Redirecting to AI Generation…
             </p>
