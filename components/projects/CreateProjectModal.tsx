@@ -102,7 +102,12 @@ export function CreateProjectModal({
 
       const { data, error: insertError } = await supabase
         .from("projects")
-        .insert({ project_name, description, owner_id: user.id })
+        .insert({
+          project_name,
+          description,
+          owner_id: user.id,
+          ai_brief_engagement: "pending",
+        })
         .select("id")
         .single();
 

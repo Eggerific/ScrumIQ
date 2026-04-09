@@ -95,6 +95,21 @@ export async function POST(
       return NextResponse.json({ error: result.message }, { status: 500 });
     }
 
+    const { error: engagementErr } = await supabase
+      .from("projects")
+      .update({ ai_brief_engagement: "complete" })
+      .eq("id", projectId)
+      .eq("owner_id", user.id);
+
+    if (engagementErr) {
+      return NextResponse.json(
+        {
+          error: `Backlog saved but could not finalize AI Generation state: ${engagementErr.message}. Add column ai_brief_engagement on projects (see supabase/migrations) or retry.`,
+        },
+        { status: 500 }
+      );
+    }
+
     const body = {
       ok: true,
       epicCount: result.epicCount,
