@@ -56,7 +56,7 @@ export function RegisterForm() {
       }
       setSuccess(true);
       setRequiresConfirmation(!!data.requiresConfirmation);
-    } catch (err) {
+    } catch {
       setErrors({ form: "Something went wrong. Please try again." });
     } finally {
       setIsLoading(false);

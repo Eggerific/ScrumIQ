@@ -76,6 +76,26 @@ The UI uses **`postProjectGenerateBacklog`** in `lib/projects/generate-backlog-c
 6. **Timeout / error** — Induce failure (invalid key or airplane mode) → error phase → Retry → recovers when fixed.
 7. **Double submit** — Rapid double-click Generate / Retry → only one request (lock).
 8. **Navigation** — `beforeunload` appears when closing tab during generating (browser-dependent confirmation UI).
+9. **Model id** — With `ANTHROPIC_API_KEY` set, confirm the terminal shows no deprecation warnings; default Haiku id is in `lib/projects/ai-generation-cost-defaults.ts` (override with `ANTHROPIC_MODEL` if needed).
+
+---
+
+## Teammates & deployed environments
+
+| Situation | What to configure |
+|-----------|-------------------|
+| **Local dev** | Each developer copies env template into **`.env.local`** (never commit). For live AI: own **`ANTHROPIC_API_KEY`** (or org policy), **`SCRUMIQ_AI_MODE=live`**, same Supabase vars as the team. |
+| **Shared preview (Vercel, etc.)** | Set **`ANTHROPIC_API_KEY`**, **`SCRUMIQ_AI_MODE`**, optional **`ANTHROPIC_MODEL`** / **`ANTHROPIC_MAX_OUTPUT_TOKENS`** in the host’s **encrypted env UI** — not in git. |
+| **Cost control** | Anthropic console: usage limits/alerts. Repo defaults to **Haiku 4.5** + capped output for cheaper runs. |
+
+---
+
+## Optional next steps (polish / hardening)
+
+- **Automated E2E** — Playwright (or similar): mock mode happy path; live mode optional in CI with a secret key or skipped.
+- **Rate limiting** — Per-user caps on `POST .../generate-backlog` if abuse becomes a concern (not required for a small class team).
+- **Structured logging** — Log generation duration and 502 reasons server-side (no brief text / no PII) for debugging.
+- **Live brief API** — `POST /api/projects/ai-brief` still returns 501 in live mode; only needed if you want the same model for that route.
 
 ---
 
