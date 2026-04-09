@@ -25,7 +25,14 @@ Hard rules:
 - Output a single JSON object only—no commentary before or after, no markdown fences.
 - Every epic, story, task, and acceptance line must be specific to this initiative (no lorem ipsum, no "asdf", no TODO placeholders).
 - Keep IDs alphanumeric plus hyphen/underscore; keep them unique across the document.
-- Write tightly: short epic descriptions, concise acceptance lines, task titles under ~12 words unless the brief demands detail.`;
+- Write tightly: short epic descriptions, concise acceptance lines, task titles under ~12 words unless the brief demands detail.
+
+Structure & alignment:
+- Epics must be **orthogonal themes** (e.g. foundation, core user value, constraints/risk, outcomes/metrics, quality/launch)—not the same story repeated under different names.
+- Each epic description must say **why this theme matters for this brief** in one or two sentences.
+- Every story must **clearly belong** to its parent epic; stories should not fit better under a sibling epic.
+- Acceptance criteria must be **testable** (observable behavior or outcome), not vague platitudes.
+- Use distinctive words from the **project title, vision, target users, 90-day success, and constraints** in epic/story text so the backlog visibly traces to the brief.`;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -89,10 +96,13 @@ Required JSON shape:
 }
 
 Rules (cost-aware — stay within this footprint):
-- Emit **4–6 epics** (not more). Each epic: **1–3 stories**. Each story: **exactly 2–4 short acceptance criteria** and **2–4 tasks** with concrete verb-led titles.
-- Epic descriptions: ~1–2 sentences. Acceptance lines: one sentence each.
+- Emit **4–6 epics** (not more). Each epic: **1–3 stories**. Each story: **2–4 short acceptance criteria** and **2–4 tasks** with concrete verb-led titles (e.g. “Define…”, “Implement…”, “Validate…”).
+- Epic descriptions: ~1–2 sentences tying the epic to **vision, users, 90-day success, or constraints** from the brief.
+- Story titles name **user-visible or delivery outcomes**, not vague labels like “Phase 2” unless the brief uses that language.
+- Acceptance criteria: one sentence each, **specific enough that QA could verify** them.
+- Do **not** reuse the same story title in multiple epics; vary scope if ideas are related.
 - IDs must be unique across the whole document.
-- Prefer traceability to the brief over breadth; do not pad with generic filler stories.
+- Prefer traceability to the brief over generic agile filler.
 - Output only the JSON object, nothing else.`;
 
 /**
@@ -108,7 +118,7 @@ export async function generateLiveBacklogDraftFromBrief(
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
     const fallback = buildLiveFallbackDraftFromInput(input);
-    const safe = enforceLiveBacklogDraftSafeguards(fallback);
+    const safe = enforceLiveBacklogDraftSafeguards(fallback, { brief: input });
     if (!safe.ok) {
       return { ok: false, message: safe.message };
     }
@@ -162,7 +172,7 @@ export async function generateLiveBacklogDraftFromBrief(
         continue;
       }
 
-      const safe = enforceLiveBacklogDraftSafeguards(draft);
+      const safe = enforceLiveBacklogDraftSafeguards(draft, { brief: input });
       if (!safe.ok) {
         lastErr = safe.message;
         continue;

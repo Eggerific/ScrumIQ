@@ -1,4 +1,6 @@
+import type { ProjectAiBriefInput } from "@/lib/projects/ai-brief-types";
 import type { AiBacklogDraftPayload } from "@/lib/projects/ai-backlog-draft-types";
+import { validateDraftAlignsWithBrief } from "@/lib/projects/ai-backlog-brief-alignment";
 
 /**
  * Caps mirror persist-project-backlog limits in spirit, but tighter so the model
@@ -145,12 +147,17 @@ export function validateLiveBacklogDraftQuality(
 }
 
 export function enforceLiveBacklogDraftSafeguards(
-  draft: AiBacklogDraftPayload
+  draft: AiBacklogDraftPayload,
+  options?: { brief?: ProjectAiBriefInput }
 ):
   | { ok: true; draft: AiBacklogDraftPayload }
   | { ok: false; message: string } {
   const sanitized = sanitizeLiveBacklogDraft(draft);
   const q = validateLiveBacklogDraftQuality(sanitized);
   if (!q.ok) return q;
+  if (options?.brief) {
+    const a = validateDraftAlignsWithBrief(options.brief, sanitized);
+    if (!a.ok) return a;
+  }
   return { ok: true, draft: sanitized };
 }
