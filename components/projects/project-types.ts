@@ -9,6 +9,13 @@ export const PROJECT_ROLE_LABELS: Record<ProjectRoleTag, string> = {
   team_developer: "Team Developer",
 };
 
+/** PM and SM may add people to the project (matches typical Scrum access). */
+export function canInviteProjectMembers(
+  roleTag: ProjectRoleTag | undefined
+): boolean {
+  return roleTag === "product_manager" || roleTag === "scrum_master";
+}
+
 /**
  * `pending` — new project: auto-open brief once until user acts.
  * `dismissed` — skipped onboarding; can open AI Generation from the sidebar.

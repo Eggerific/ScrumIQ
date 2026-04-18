@@ -9,7 +9,10 @@ import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
 import { useHasBacklogDraft } from "@/hooks/use-has-backlog-draft";
 import { InviteMemberModal } from "./InviteMemberModal";
 import { useProjectsWorkspace } from "./ProjectsWorkspaceProvider";
-import type { AiBriefEngagement } from "./project-types";
+import {
+  canInviteProjectMembers,
+  type AiBriefEngagement,
+} from "./project-types";
 
 export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -97,7 +100,8 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
       "Your backlog is on the Backlog tab — expand fields with + to edit. AI Generation stays closed while this session still has your draft.";
   }
 
-  const inviteButton = (
+  const showInvite = canInviteProjectMembers(project.roleTag);
+  const inviteButton = showInvite ? (
     <button
       type="button"
       onClick={() => setInviteOpen(true)}
@@ -106,7 +110,7 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
       <UserPlus className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
       Invite member
     </button>
-  );
+  ) : null;
 
   return (
     <>
@@ -138,12 +142,14 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
         </div>
       </PageShell>
 
-      <InviteMemberModal
-        open={inviteOpen}
-        onOpenChange={setInviteOpen}
-        projectId={project.id}
-        projectName={project.name}
-      />
+      {showInvite ? (
+        <InviteMemberModal
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          projectId={project.id}
+          projectName={project.name}
+        />
+      ) : null}
     </>
   );
 }

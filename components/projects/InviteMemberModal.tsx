@@ -3,19 +3,21 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { UserPlus, X, Search, ChevronDown, Loader2, UserCheck } from "lucide-react";
+import { UserPlus, X, Search, Loader2, UserCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AppSelect } from "@/components/ui/AppSelect";
 import { checkInviteeProjectCapacity } from "@/lib/projects/invite-capacity-check";
 import { MAX_PROJECTS_ON_WORKSPACE_LIST } from "@/lib/projects/constants";
+import { PROJECT_ROLE_LABELS, type ProjectRoleTag } from "./project-types";
 
 const easeSmooth = [0.25, 0.1, 0.25, 1] as const;
 
-type MemberRole = "product_manager" | "scrum_master" | "team_developer";
+type MemberRole = ProjectRoleTag;
 
 const ROLE_OPTIONS: { value: MemberRole; label: string }[] = [
-  { value: "product_manager", label: "Product Manager" },
-  { value: "scrum_master", label: "SCRUM Master" },
-  { value: "team_developer", label: "Developer" },
+  { value: "product_manager", label: PROJECT_ROLE_LABELS.product_manager },
+  { value: "scrum_master", label: PROJECT_ROLE_LABELS.scrum_master },
+  { value: "team_developer", label: PROJECT_ROLE_LABELS.team_developer },
 ];
 
 interface UserResult {
@@ -24,11 +26,20 @@ interface UserResult {
   email: string;
 }
 
+export type InviteAddedMemberPayload = {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: MemberRole;
+};
+
 interface InviteMemberModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
   projectName: string;
+  /** Called after a member is successfully added (e.g. merge into team roster). */
+  onInviteSuccess?: (member: InviteAddedMemberPayload) => void;
 }
 
 export function InviteMemberModal({
@@ -36,6 +47,7 @@ export function InviteMemberModal({
   onOpenChange,
   projectId,
   projectName,
+  onInviteSuccess,
 }: InviteMemberModalProps) {
   const titleId = useId();
   const searchId = useId();
@@ -230,6 +242,12 @@ export function InviteMemberModal({
         return;
       }
 
+      onInviteSuccess?.({
+        userId: selected.id,
+        fullName: selected.full_name,
+        email: selected.email,
+        role,
+      });
       setSuccess(true);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -466,19 +484,14 @@ export function InviteMemberModal({
                         <label className="text-sm font-medium text-zinc-300">
                           Assign role
                         </label>
-                        <div className="relative mt-1.5">
-                          <select
+                        <div className="mt-1.5">
+                          <AppSelect
                             value={role}
-                            onChange={(e) => setRole(e.target.value as MemberRole)}
-                            className="w-full appearance-none rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/50 px-3 py-2 pr-9 text-sm text-[var(--foreground)] outline-none transition-[border-color,box-shadow] focus:border-[var(--app-accent)]/50 focus:ring-2 focus:ring-[var(--app-accent)]/25"
-                          >
-                            {ROLE_OPTIONS.map((o) => (
-                              <option key={o.value} value={o.value}>
-                                {o.label}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden />
+                            onValueChange={(v) => setRole(v as MemberRole)}
+                            options={ROLE_OPTIONS}
+                            aria-label="Assign role"
+                            triggerClassName="h-10 min-h-10 text-sm"
+                          />
                         </div>
                       </motion.div>
                     ) : null}
