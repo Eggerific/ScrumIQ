@@ -20,8 +20,25 @@ export type ProjectRow = {
   owner_id: string;
   created_at?: string | null;
   updated_at?: string | null;
+  /** From DB when column exists; onboarding state for AI Generation. */
+  ai_brief_engagement?: string | null;
   project_members?: ProjectMemberRow[] | null;
 };
+
+/** Maps DB `ai_brief_engagement` to workspace state (invalid → undefined). */
+export function mapAiBriefEngagement(
+  raw: string | null | undefined
+): ProjectSummary["aiBriefEngagement"] {
+  if (
+    raw === "pending" ||
+    raw === "dismissed" ||
+    raw === "complete" ||
+    raw === "skipped"
+  ) {
+    return raw;
+  }
+  return undefined;
+}
 
 function isProjectRoleTag(r: string): r is ProjectRoleTag {
   return (
@@ -69,7 +86,8 @@ export function mapProjectRowsToSummaries(
         DOT_CLASSES[i % DOT_CLASSES.length] ?? "bg-emerald-500",
       updatedLabel: formatUpdatedLabel(row.updated_at ?? row.created_at),
       roleTag,
-      aiBriefEngagement: undefined,
+      isCurrentUserOwner: row.owner_id === currentUserId,
+      aiBriefEngagement: mapAiBriefEngagement(row.ai_brief_engagement),
     };
   });
 }
@@ -100,6 +118,7 @@ export async function fetchWorkspaceProjects(
       owner_id,
       created_at,
       updated_at,
+      ai_brief_engagement,
       project_members ( user_id, role )
     `
     )

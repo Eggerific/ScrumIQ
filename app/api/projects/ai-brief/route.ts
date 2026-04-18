@@ -1,27 +1,7 @@
 import { NextResponse } from "next/server";
-import type { ProjectAiBriefInput } from "@/lib/projects/ai-brief-types";
 import { buildMockAiBrief } from "@/lib/projects/ai-brief-mock";
-
-function isMockMode(): boolean {
-  const m = process.env.SCRUMIQ_AI_MODE?.toLowerCase().trim();
-  if (m === "live") return false;
-  if (m === "mock") return true;
-  return true;
-}
-
-function validateBody(body: unknown): body is ProjectAiBriefInput {
-  if (!body || typeof body !== "object") return false;
-  const o = body as Record<string, unknown>;
-  const str = (k: string) => typeof o[k] === "string";
-  return (
-    str("title") &&
-    str("vision") &&
-    str("targetUsers") &&
-    str("success90d") &&
-    str("constraints") &&
-    str("freeformNotes")
-  );
-}
+import { isMockAiMode } from "@/lib/projects/ai-mode";
+import { parseProjectAiBriefBody } from "@/lib/projects/project-ai-brief-body";
 
 export async function POST(req: Request) {
   let json: unknown;
@@ -31,36 +11,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!validateBody(json)) {
-    return NextResponse.json(
-      { error: "Missing or invalid brief fields" },
-      { status: 400 }
-    );
+  const parsed = parseProjectAiBriefBody(json);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   }
 
-  const input: ProjectAiBriefInput = {
-    title: json.title.trim(),
-    vision: json.vision.trim(),
-    targetUsers: json.targetUsers.trim(),
-    success90d: json.success90d.trim(),
-    constraints: json.constraints.trim(),
-    freeformNotes: json.freeformNotes.trim(),
-  };
+  const input = parsed.input;
 
-  if (input.title.length < 2) {
-    return NextResponse.json(
-      { error: "Title should be at least 2 characters" },
-      { status: 400 }
-    );
-  }
-  if (input.vision.length < 8) {
-    return NextResponse.json(
-      { error: "Vision / problem needs a bit more detail (8+ characters)" },
-      { status: 400 }
-    );
-  }
-
-  if (isMockMode()) {
+  if (isMockAiMode(process.env.SCRUMIQ_AI_MODE)) {
     await new Promise((r) =>
       setTimeout(r, 650 + Math.floor(Math.random() * 500))
     );

@@ -60,13 +60,41 @@ The following variables are required in your `.env.local`:
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous public key |
 | `ANTHROPIC_API_KEY` | Your Anthropic Claude API key (server-side only) |
-| `SCRUMIQ_AI_MODE` | Optional. `mock` (default if unset) = `/api/projects/ai-brief` returns local mock data. `live` = reserved until a real provider is implemented. |
+| `SCRUMIQ_AI_MODE` | Optional. Single switch in `.env.local` (no `NEXT_PUBLIC_*` copy needed). `mock` (default if unset) = mock brief responses and the backlog flow uses **`buildStubBacklogDraftFromInput`** in the browser (no API credits). `live` = brief flow unchanged; backlog generation calls **`POST /api/projects/[projectId]/generate-backlog`** (server). Without **`ANTHROPIC_API_KEY`**, that route still returns a deterministic **`artifactSource: "live"`** preview for local E2E. The client reads the mode via **`GET /api/ai-config`**. |
+| `ANTHROPIC_MODEL` | Optional. Backlog generation defaults to **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`) for lower cost. Set to e.g. **`claude-sonnet-4-20250514`** when you want stronger reasoning (higher spend). |
+| `ANTHROPIC_MAX_OUTPUT_TOKENS` | Optional. Caps **output** tokens per generation request (integer **2048–8192**, default **6144**). Lower = cheaper ceiling; too low may truncate JSON and force retries. Server only. |
+
 
 These can be found in:
 - **Supabase** — [supabase.com](https://supabase.com) → your project → Settings → API
 - **Anthropic** — [console.anthropic.com](https://console.anthropic.com) → API Keys
 
 See `docs/PROJECTS-WORKSPACE.md` for the **brief explainer** on first project open (planned fields; API not used by the UI yet).
+
+### Supabase: AI Generation completion (required for production)
+
+The app stores **`projects.ai_brief_engagement`** in Postgres so “Add to backlog” stays final after restarts and new browsers. Apply the migration in your Supabase project:
+
+- **SQL:** `supabase/migrations/20260408120000_add_projects_ai_brief_engagement.sql`  
+  Run the file contents in **SQL Editor** (or your usual migration workflow).
+
+Without this column, **creating projects** and **finalizing AI backlog** may fail until the migration is applied.
+
+### Supabase: removing a project (`epics_project_id_fkey`)
+
+**Cause:** With RLS, client-side **`DELETE`** plus **`SELECT` count checks** can both look “empty” while rows still exist (e.g. **`SELECT`** policies hide backlog rows), so the app deletes **`projects`** too early and Postgres raises **`epics_project_id_fkey`**.
+
+**Fix (required):** Run **`supabase/migrations/20260409140000_rpc_delete_project_for_owner.sql`**. It adds **`public.delete_project_for_owner(uuid)`**, a **`SECURITY DEFINER`** RPC that deletes **`tasks` → `stories` → `epics` → `project_members` → `projects`** in one transaction after verifying **`auth.uid()`** is the project **owner**. The app calls this RPC only; it does **not** rely on per-table **`DELETE`** policies for removal.
+
+**Optional:** **`20260409130000_rls_backlog_delete_via_is_project_owner.sql`** improves owner **`DELETE`** policies if you still delete backlog rows from the client elsewhere. It does **not** replace the RPC for “remove project.”
+
+### Keeping AI costs down (students & side projects)
+
+- Use **`SCRUMIQ_AI_MODE=mock`** (or leave unset) while building UI—no Anthropic charges.
+- With **`SCRUMIQ_AI_MODE=live`** and **no** `ANTHROPIC_API_KEY`, the app uses a **free deterministic** server preview (still `artifactSource: "live"`).
+- When you add a key, **Haiku stays the default**; the prompt asks for a **smaller backlog tree** (4–6 epics) and **capped output tokens** to limit worst-case cost.
+- For a big class project or demo where quality matters more than price, set **`ANTHROPIC_MODEL`** to a Sonnet id and optionally raise **`ANTHROPIC_MAX_OUTPUT_TOKENS`** (still capped at 8192 in code).
+- In the [Anthropic console](https://console.anthropic.com), set **usage limits / alerts** so you get notified before a surprise bill.
 
 ---
 

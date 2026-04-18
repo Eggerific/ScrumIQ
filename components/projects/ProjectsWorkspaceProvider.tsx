@@ -10,7 +10,9 @@ import {
   type ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { writeAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
 import { MAX_PROJECTS_ON_WORKSPACE_LIST } from "@/lib/projects/constants";
+import { healStalePendingAiBriefEngagement } from "@/lib/projects/heal-stale-ai-brief-engagement";
 import {
   CREATOR_PROJECT_MEMBER_ROLE,
   fetchWorkspaceProjects,
@@ -73,6 +75,10 @@ export function ProjectsWorkspaceProvider({ children }: { children: ReactNode })
     null
   );
   const [removeTarget, setRemoveTarget] = useState<ProjectSummary | null>(null);
+  const [removeProjectError, setRemoveProjectError] = useState<{
+    message: string;
+    variant: "caution" | "destructive";
+  } | null>(null);
 
   const refreshProjects = useCallback(
     async (opts?: { showLoading?: boolean }) => {
@@ -86,7 +92,29 @@ export function ProjectsWorkspaceProvider({ children }: { children: ReactNode })
         setProjects([]);
       } else {
         setProjectsLoadError(null);
-        setProjects(data);
+        let merged = data;
+        const pendingProjects = data.filter(
+          (p) => p.aiBriefEngagement === "pending"
+        );
+        if (pendingProjects.length > 0) {
+          const results = await Promise.all(
+            pendingProjects.map((p) =>
+              healStalePendingAiBriefEngagement(supabase, p.id, "pending")
+            )
+          );
+          const healedById = new Map(
+            pendingProjects.map((p, i) => [p.id, results[i]!])
+          );
+          merged = data.map((p) => {
+            const r = healedById.get(p.id);
+            if (r?.healed && r.engagement === "complete") {
+              writeAiBriefEngagement(p.id, "complete");
+              return { ...p, aiBriefEngagement: "complete" as const };
+            }
+            return p;
+          });
+        }
+        setProjects(merged);
       }
       setProjectsHydrated(true);
       setProjectsLoading(false);
@@ -118,41 +146,47 @@ export function ProjectsWorkspaceProvider({ children }: { children: ReactNode })
 
   const requestRemoveProject = useCallback((project: ProjectSummary) => {
     setRemoveTarget(project);
+    setRemoveProjectError(null);
   }, []);
 
   const handleConfirmRemoveProject = useCallback(
     async (project: ProjectSummary) => {
-      const supabase = createClient();
-
-      const { error: membersError } = await supabase
-        .from("project_members")
-        .delete()
-        .eq("project_id", project.id);
-
-      if (membersError) {
-        console.error("Supabase delete project_members:", membersError.message);
-        setProjectsLoadError(
-          `Could not remove project: ${membersError.message}`
-        );
+      try {
+        const res = await fetch(`/api/projects/${project.id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        if (!res.ok) {
+          const message = body.error ?? `Something went wrong (HTTP ${res.status}).`;
+          const isExpectedClientIssue =
+            res.status === 400 ||
+            res.status === 401 ||
+            res.status === 403 ||
+            res.status === 404;
+          if (!isExpectedClientIssue) {
+            console.error("Delete project failed:", message);
+          }
+          setRemoveProjectError({
+            message,
+            variant: isExpectedClientIssue ? "caution" : "destructive",
+          });
+          return;
+        }
+        removeProject(project.id);
         setRemoveTarget(null);
-        return;
+        setRemoveProjectError(null);
+        setProjectsLoadError(null);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Network error";
+        console.error("Delete project:", e);
+        setRemoveProjectError({
+          message: `Could not reach the server. ${message}`,
+          variant: "destructive",
+        });
       }
-
-      const { error } = await supabase
-        .from("projects")
-        .delete()
-        .eq("id", project.id);
-
-      if (error) {
-        console.error("Supabase delete project:", error.message);
-        setProjectsLoadError(`Could not remove project: ${error.message}`);
-        setRemoveTarget(null);
-        return;
-      }
-
-      removeProject(project.id);
-      setRemoveTarget(null);
-      setProjectsLoadError(null);
     },
     [removeProject]
   );
@@ -209,7 +243,11 @@ export function ProjectsWorkspaceProvider({ children }: { children: ReactNode })
       />
       <RemoveProjectConfirmModal
         project={removeTarget}
-        onCancel={() => setRemoveTarget(null)}
+        error={removeProjectError}
+        onCancel={() => {
+          setRemoveTarget(null);
+          setRemoveProjectError(null);
+        }}
         onConfirm={handleConfirmRemoveProject}
       />
     </ProjectsWorkspaceContext.Provider>

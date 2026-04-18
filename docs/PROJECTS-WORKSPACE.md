@@ -1,15 +1,16 @@
 # Projects workspace — simple overview
 
+**Note:** AI backlog **UI/UX and navigation** live in the app; **AI mock mode and JSON parsing** for real responses are owned separately (see [QA-HANDOFF-AI-GENERATION-AND-BACKLOG.md](./QA-HANDOFF-AI-GENERATION-AND-BACKLOG.md) — division of work).
+
 ## What we set up
 
 - **Projects list** is the main UX: 2×2 grid, sidebar, quick **create** (title + description), remove, limits.
-- **First visit to a project** (`aiBriefEngagement: "pending"`): a **read-only dialog** opens once. It explains **which fields** a future AI brief is expected to produce (aligned with `ProjectAiBriefResponse` / `ProjectStructuredBrief`). It does **not** call the API or run mock generation in this branch.
-- **Continue to project** (or close): marks engagement **`complete`** so the dialog doesn’t auto-open again.
-- **Legacy `skipped`**: users who had skipped the old wizard can open **Planned brief fields** anytime; that only shows the same explainer and does **not** change engagement.
+- **First visit to a project** (`aiBriefEngagement: "pending"`): user is sent to **`/projects/[id]/brief`** to enter **context**, hit **Generate** once, review **epics/stories/tasks** (stub), then **Add to backlog** (session storage). **Skip for now** sets **`dismissed`**; **Add to backlog** sets **`complete`**.
+- **Legacy `skipped` / `dismissed` / `complete`**: reopen from the project home link or sidebar **AI backlog** (same route `/brief`).
 
-**Mock API** (`POST /api/projects/ai-brief`, `lib/projects/ai-brief-mock.ts`) remains for your teammate to iterate on parsing and models; **the modal does not use it yet.**
+**Backlog generation** is **`buildStubBacklogDraftFromInput`** (`lib/projects/ai-backlog-stub.ts`) until Connor adds a **`POST`** that returns `AiBacklogDraftPayload`. **`POST /api/projects/ai-brief`** is **not** used on this path (optional for other features).
 
-Seed projects omit `aiBriefEngagement` → treated like “done” (no auto dialog).
+Seed projects omit `aiBriefEngagement` → no auto-redirect to `/brief`; sidebar still works.
 
 ---
 
@@ -33,9 +34,11 @@ When AI is reconnected, the **review UI** can be rebuilt or restored to edit the
 
 ## For your teammate (AI / backend)
 
-They can own **`app/api/projects/ai-brief/route.ts`**, **`lib/projects/ai-brief-mock.ts`**, **`lib/projects/ai-brief-types.ts`**, and later wire **`ProjectAiBriefModal`** (or a successor) to `fetch` + a review step—without changing grid/sidebar/create if the **JSON contract** stays compatible.
+They can own **`app/api/projects/ai-brief/route.ts`**, **`lib/projects/ai-brief-mock.ts`**, **`lib/projects/ai-brief-types.ts`**, plus a future **backlog-generation** API and persistence—without changing the brief **JSON contract** the UI already sends and displays.
 
 **Coordinate** if request/response shapes change; see [PLANNED-AI-BRIEF-MOCK-RESTORE.md](./PLANNED-AI-BRIEF-MOCK-RESTORE.md).
+
+**Extended flow (brief → AI-generated epics/stories/tasks → review → backlog):** see [AI-BRIEF-AND-BACKLOG-GENERATION-FLOW.md](./AI-BRIEF-AND-BACKLOG-GENERATION-FLOW.md). That doc covers end-to-end navigation and **UI-only / stub-first** implementation before backend persistence.
 
 ---
 
@@ -43,8 +46,16 @@ They can own **`app/api/projects/ai-brief/route.ts`**, **`lib/projects/ai-brief-
 
 | File | Role |
 |------|------|
-| `ProjectAiBriefModal.tsx` | Explainer only (planned fields + pointer to types / route). |
-| `ProjectWorkspaceView.tsx` | When to open modal; `pending` → `complete` on dismiss. |
+| `app/(app)/projects/[id]/brief/page.tsx` | AI brief → backlog draft flow (form, review, stub backlog). |
+| `components/projects/ai-flow/ProjectAiFlowView.tsx` | Form → generate → review; uses `GET /api/ai-config`; mock mode uses `buildStubBacklogDraftFromInput` (no brief API in this flow). |
+| `ProjectBacklogView.tsx` | Reads session draft from `backlog-draft-storage.ts`. |
+| `ProjectAiBriefModal.tsx` | Legacy explainer modal (unused; flow lives on `/brief`). |
+| `ProjectWorkspaceView.tsx` | `pending` → `router.replace` to `/brief`; link back to flow when dismissed/complete. |
 | `CreateProjectModal.tsx` | Sets `aiBriefEngagement: "pending"` on new projects. |
-| `app/api/projects/ai-brief/route.ts` | Mock/live API (not used by modal today). |
-| `lib/projects/ai-brief-types.ts` | Contract the explainer and future UI should match. |
+| `app/api/ai-config/route.ts` | Exposes `SCRUMIQ_AI_MODE` to the client (`GET`). |
+| `app/api/projects/[projectId]/backlog/route.ts` | Persists `AiBacklogDraftPayload` to `epics` / `stories` / `tasks`. |
+| `lib/projects/persist-project-backlog.ts` | Insert/replace backlog rows for a project. |
+| `supabase/migrations/20260331120000_epics_stories_tasks_rls.sql` | Table + RLS migration (run in Supabase SQL Editor). |
+| `app/api/projects/ai-brief/route.ts` | Mock/live brief API (optional; not called by `/brief` backlog flow today). |
+| `hooks/use-ai-config.ts` | Client hook for `/api/ai-config`. |
+| `lib/projects/ai-brief-types.ts` | Brief request/response contract. |

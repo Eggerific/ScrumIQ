@@ -1,26 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText } from "lucide-react";
+import { FileText, ListTodo, UserPlus } from "lucide-react";
 import { PageShell } from "@/components/app/PageShell";
-import {
-  readAiBriefEngagement,
-  writeAiBriefEngagement,
-} from "@/lib/projects/ai-brief-storage";
-import { ProjectAiBriefModal } from "./ProjectAiBriefModal";
+import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
+import { useHasBacklogDraft } from "@/hooks/use-has-backlog-draft";
+import { InviteMemberModal } from "./InviteMemberModal";
 import { useProjectsWorkspace } from "./ProjectsWorkspaceProvider";
-import type { AiBriefEngagement } from "./project-types";
-
-function blocksAutoOpen(e: AiBriefEngagement | undefined | null): boolean {
-  return e === "complete" || e === "skipped" || e === "dismissed";
-}
+import {
+  canInviteProjectMembers,
+  type AiBriefEngagement,
+} from "./project-types";
 
 export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
   const router = useRouter();
   const { projects, updateProject, projectsHydrated } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
-  const [briefOpen, setBriefOpen] = useState(false);
+  const hasDraft = useHasBacklogDraft(projectId);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const storedEngagement =
     typeof window !== "undefined" && project
@@ -40,38 +39,13 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
     }
   }, [projectsHydrated, project, updateProject]);
 
-  // First visit (or no saved dismiss/complete): open AI brief automatically.
+  // New projects (`pending`): send the creator into the AI brief flow once.
   useEffect(() => {
     if (!projectsHydrated || !project) return;
-    const stored = readAiBriefEngagement(project.id);
-    if (blocksAutoOpen(stored) || blocksAutoOpen(project.aiBriefEngagement)) {
-      return;
-    }
-    const id = requestAnimationFrame(() => setBriefOpen(true));
-    return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- project object identity churns on list refetch; id + engagement suffice
-  }, [projectsHydrated, project?.id, project?.aiBriefEngagement]);
-
-  const handleDismissTemporary = useCallback(() => {
-    if (!project) return;
-    const stored = readAiBriefEngagement(project.id);
-    if (
-      project.aiBriefEngagement === "complete" ||
-      project.aiBriefEngagement === "skipped" ||
-      stored === "complete" ||
-      stored === "skipped"
-    ) {
-      return;
-    }
-    writeAiBriefEngagement(project.id, "dismissed");
-    updateProject(project.id, { aiBriefEngagement: "dismissed" });
-  }, [project, updateProject]);
-
-  const handleContinue = useCallback(() => {
-    if (!project) return;
-    writeAiBriefEngagement(project.id, "complete");
-    updateProject(project.id, { aiBriefEngagement: "complete" });
-  }, [project, updateProject]);
+    if (!project.isCurrentUserOwner) return;
+    if (project.aiBriefEngagement !== "pending") return;
+    router.replace(`/projects/${project.id}/brief`);
+  }, [projectsHydrated, project, router]);
 
   if (!projectsHydrated) {
     return (
@@ -98,49 +72,84 @@ export function ProjectWorkspaceView({ projectId }: { projectId: string }) {
     );
   }
 
-  const showBriefReopen =
-    engagement === "dismissed" ||
-    engagement === "complete" ||
-    engagement === "skipped";
+  const showBacklogLink =
+    hasDraft || engagement === "complete" || !project.isCurrentUserOwner;
+  const showResumeAiLink =
+    project.isCurrentUserOwner &&
+    (engagement === "dismissed" || engagement === "skipped") &&
+    !hasDraft;
 
   let subtitle =
-    "Use the sidebar for Backlog, Sprint, Kanban, and Team when those routes exist.";
-  if (engagement === "pending") {
+    "Use the sidebar for AI Generation, Backlog, Sprint, Kanban, and Team.";
+  if (!project.isCurrentUserOwner) {
     subtitle =
-      "A one-time dialog explains the planned AI brief fields (generation not wired yet).";
+      "You’re a team member on this project. Open Backlog, Sprint, or Kanban from the sidebar — only the creator can run AI Generation.";
+  } else if (hasDraft && engagement !== "complete") {
+    subtitle =
+      "You have a generated draft in this session — open Backlog to review and edit. AI Generation is closed until that draft is cleared.";
+  } else if (engagement === "pending") {
+    subtitle = "Opening AI Generation…";
   } else if (engagement === "dismissed") {
     subtitle =
-      "The AI brief intro is available below whenever you want it — you’re not stuck in a modal.";
+      "Continue whenever you’re ready — use the sidebar or the button below.";
   } else if (engagement === "skipped") {
     subtitle =
-      "Open the preview anytime to see which fields the future AI brief will populate.";
+      "Generate epics and stories from the sidebar or below (session draft until DB exists).";
   } else if (engagement === "complete") {
     subtitle =
-      "Use the sidebar to open Backlog, Sprint, Kanban, or Team when available.";
+      "Your backlog is on the Backlog tab — expand fields with + to edit. AI Generation stays closed while this session still has your draft.";
   }
+
+  const showInvite = canInviteProjectMembers(project.roleTag);
+  const inviteButton = showInvite ? (
+    <button
+      type="button"
+      onClick={() => setInviteOpen(true)}
+      className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"
+    >
+      <UserPlus className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
+      Invite member
+    </button>
+  ) : null;
 
   return (
     <>
       <PageShell title={project.name} subtitle={subtitle}>
-        {showBriefReopen ? (
-          <button
-            type="button"
-            onClick={() => setBriefOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"
-          >
-            <FileText className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
-            AI project brief
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {project.isCurrentUserOwner &&
+          project.aiBriefEngagement === "pending" ? (
+            <p className="text-sm text-[var(--app-text-muted)]">
+              Redirecting to AI Generation…
+            </p>
+          ) : showBacklogLink ? (
+            <Link
+              href={`/projects/${project.id}/backlog`}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"
+            >
+              <ListTodo className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
+              {hasDraft && engagement !== "complete" ? "Review draft" : "Backlog"}
+            </Link>
+          ) : showResumeAiLink ? (
+            <Link
+              href={`/projects/${project.id}/brief`}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-[var(--app-accent)]/40 hover:bg-[var(--app-nav-hover-bg)]"
+            >
+              <FileText className="h-4 w-4 text-[var(--app-accent)]" aria-hidden />
+              AI Generation
+            </Link>
+          ) : null}
+          {inviteButton}
+        </div>
       </PageShell>
 
-      <ProjectAiBriefModal
-        open={briefOpen}
-        onOpenChange={setBriefOpen}
-        projectName={project.name}
-        onDismissTemporary={handleDismissTemporary}
-        onContinue={handleContinue}
-      />
+      {showInvite ? (
+        <InviteMemberModal
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          projectId={project.id}
+          projectName={project.name}
+        />
+      ) : null}
     </>
   );
 }

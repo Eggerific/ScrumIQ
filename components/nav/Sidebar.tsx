@@ -17,9 +17,13 @@ import {
   Users,
   Plus,
   Trash2,
+  FileText,
 } from "lucide-react";
 import { AppLogo } from "@/components/app/AppLogo";
+import { AppTooltip, AppTooltipProvider } from "@/components/ui/tooltip";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
+import { readAiBriefEngagement } from "@/lib/projects/ai-brief-storage";
+import { useHasBacklogDraft } from "@/hooks/use-has-backlog-draft";
 
 export interface SidebarProps {
   fullName: string;
@@ -32,14 +36,49 @@ interface NavItem {
   icon?: React.ReactNode;
 }
 
-/** Project-scoped nav items for project state. */
+/** After “Add to backlog” — session draft + engagement complete */
+const AI_GENERATION_DISABLED_AFTER_CONFIRM =
+  "Your backlog draft is in this browser session. Finish reviewing it on Backlog — AI Generation stays closed until that session draft is gone.";
+
+/** After generate (review) but before confirm — can’t run the input form again */
+const AI_GENERATION_DISABLED_DRAFT_IN_SESSION =
+  "You already generated a draft in this session. Review it on Backlog — you can’t start a new generation from scratch until this draft is gone.";
+
+const AI_GENERATION_ENABLED_TITLE =
+  "Enter project context, generate a draft, then review and edit before you add it to the backlog.";
+
+const AI_GENERATION_DISABLED_NOT_OWNER =
+  "Only the project creator can run AI Generation. You can open Backlog, Sprint, and Kanban once the backlog exists.";
+
+/** Project-scoped nav items (AI Generation disabled while a session draft exists). */
 function getProjectNavItems(projectId: string): NavItem[] {
   const base = `/projects/${projectId}`;
   return [
-    { href: `${base}/backlog`, label: "Backlog", icon: <ListTodo className="h-4 w-4 shrink-0" /> },
-    { href: `${base}/sprint`, label: "Sprint", icon: <GitBranch className="h-4 w-4 shrink-0" /> },
-    { href: `${base}/kanban`, label: "Kanban", icon: <LayoutGrid className="h-4 w-4 shrink-0" /> },
-    { href: `${base}/team`, label: "Team", icon: <Users className="h-4 w-4 shrink-0" /> },
+    {
+      href: `${base}/brief`,
+      label: "AI Generation",
+      icon: <FileText className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: `${base}/backlog`,
+      label: "Backlog",
+      icon: <ListTodo className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: `${base}/sprint`,
+      label: "Sprint",
+      icon: <GitBranch className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: `${base}/kanban`,
+      label: "Kanban",
+      icon: <LayoutGrid className="h-4 w-4 shrink-0" />,
+    },
+    {
+      href: `${base}/team`,
+      label: "Team",
+      icon: <Users className="h-4 w-4 shrink-0" />,
+    },
   ];
 }
 
@@ -74,6 +113,11 @@ export function Sidebar({ fullName, email }: SidebarProps) {
     projectId !== null
       ? workspaceProjects.find((p) => p.id === projectId)
       : undefined;
+  const storedAiEngagement =
+    projectId !== null ? readAiBriefEngagement(projectId) : null;
+  const effectiveAiEngagement =
+    currentWorkspaceProject?.aiBriefEngagement ?? storedAiEngagement;
+  const hasBacklogDraft = useHasBacklogDraft(projectId);
   const isProjectState = projectId !== null;
 
   const [projectsExpanded, setProjectsExpanded] = useState(false);
@@ -103,14 +147,14 @@ export function Sidebar({ fullName, email }: SidebarProps) {
 
   return (
     <div
-      className="relative flex h-full w-56 shrink-0 flex-col"
+      className="relative flex h-full min-h-0 w-56 shrink-0 flex-col self-stretch bg-[var(--app-sidebar-bg)]"
       style={{
         boxShadow: "4px 0 24px -4px oklch(0.65 0.19 165 / 0.25)",
       }}
     >
       <motion.aside
         initial={false}
-        className="relative flex h-full w-full flex-col border-r-0 pr-px"
+        className="relative flex h-full min-h-0 w-full flex-col border-r-0 pr-px"
         style={{ background: "var(--app-sidebar-bg)" }}
       >
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -149,34 +193,93 @@ export function Sidebar({ fullName, email }: SidebarProps) {
               </div>
             </motion.div>
             {/* Project nav */}
-            <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
-              {getProjectNavItems(projectId).map((item, i) => {
-                const isActive = pathname === item.href;
-                return (
-                  <motion.div
-                    key={item.href}
-                    initial={{ opacity: 0, x: -4 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{
-                      duration: 0.25,
-                      delay: i * navItemStagger,
-                      ease: easeSmooth,
-                    }}
-                  >
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        navLinkBase,
-                        isActive ? navLinkActive : navLinkInactive
-                      )}
+            <AppTooltipProvider delayDuration={250}>
+              <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
+                {getProjectNavItems(projectId).map((item, i) => {
+                  const isActive = pathname === item.href;
+                  const isBrief = item.href.endsWith("/brief");
+                  const isOwner = currentWorkspaceProject?.isCurrentUserOwner ?? false;
+                  const aiGenDisabledInvitee = isBrief && !isOwner;
+                  /** Lock when backlog was saved to DB or a session draft still exists (owner). */
+                  const aiGenLocked =
+                    isBrief &&
+                    isOwner &&
+                    (hasBacklogDraft || effectiveAiEngagement === "complete");
+                  const aiGenDisabledTitle =
+                    effectiveAiEngagement === "complete"
+                      ? AI_GENERATION_DISABLED_AFTER_CONFIRM
+                      : AI_GENERATION_DISABLED_DRAFT_IN_SESSION;
+                  return (
+                    <motion.div
+                      key={item.href}
+                      initial={{ opacity: 0, x: -4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{
+                        duration: 0.25,
+                        delay: i * navItemStagger,
+                        ease: easeSmooth,
+                      }}
                     >
-                      {item.icon}
-                      {item.label}
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </nav>
+                      {isBrief ? (
+                        aiGenDisabledInvitee ? (
+                          <AppTooltip content={AI_GENERATION_DISABLED_NOT_OWNER}>
+                            <span
+                              className={cn(
+                                navLinkBase,
+                                "cursor-not-allowed opacity-50"
+                              )}
+                              aria-label={AI_GENERATION_DISABLED_NOT_OWNER}
+                              aria-disabled="true"
+                            >
+                              {item.icon}
+                              {item.label}
+                            </span>
+                          </AppTooltip>
+                        ) : aiGenLocked ? (
+                          <AppTooltip content={aiGenDisabledTitle}>
+                            <span
+                              className={cn(
+                                navLinkBase,
+                                "cursor-not-allowed opacity-50"
+                              )}
+                              aria-label={aiGenDisabledTitle}
+                              aria-disabled="true"
+                            >
+                              {item.icon}
+                              {item.label}
+                            </span>
+                          </AppTooltip>
+                        ) : (
+                          <AppTooltip content={AI_GENERATION_ENABLED_TITLE}>
+                            <Link
+                              href={item.href}
+                              className={cn(
+                                navLinkBase,
+                                isActive ? navLinkActive : navLinkInactive
+                              )}
+                            >
+                              {item.icon}
+                              {item.label}
+                            </Link>
+                          </AppTooltip>
+                        )
+                      ) : (
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            navLinkBase,
+                            isActive ? navLinkActive : navLinkInactive
+                          )}
+                        >
+                          {item.icon}
+                          {item.label}
+                        </Link>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </nav>
+            </AppTooltipProvider>
           </>
         ) : (
           <>

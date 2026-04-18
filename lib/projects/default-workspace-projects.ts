@@ -12,6 +12,7 @@ export const DEFAULT_WORKSPACE_PROJECTS: ProjectSummary[] = [
     dotClass: "bg-emerald-500",
     updatedLabel: "Updated 2d ago",
     roleTag: "product_manager",
+    isCurrentUserOwner: true,
   },
   {
     id: "placeholder-beta-project",
@@ -20,6 +21,7 @@ export const DEFAULT_WORKSPACE_PROJECTS: ProjectSummary[] = [
     dotClass: "bg-amber-500",
     updatedLabel: "Updated 1w ago",
     roleTag: "scrum_master",
+    isCurrentUserOwner: true,
   },
   {
     id: "placeholder-gamma-team",
@@ -28,5 +30,6 @@ export const DEFAULT_WORKSPACE_PROJECTS: ProjectSummary[] = [
     dotClass: "bg-blue-500",
     updatedLabel: "Updated 3d ago",
     roleTag: "team_developer",
+    isCurrentUserOwner: true,
   },
 ];
