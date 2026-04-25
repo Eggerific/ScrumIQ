@@ -21,6 +21,7 @@ export interface TaskCard {
   status: string;
   assigned_to: string | null;
   story_points: number | null;
+  story_title: string | null;
 }
 
 const PRIORITY_CONFIG: Record<number, { label: string; dot: string }> = {

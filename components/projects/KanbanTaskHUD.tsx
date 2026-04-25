@@ -3,24 +3,27 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, User, Hash, AlertCircle, CheckCircle2, Clock, Circle } from "lucide-react";
+import {
+  X, User, Hash, AlertCircle, CheckCircle2,
+  Clock, Circle, BookOpen, Minus, Plus,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { TaskCard, ProjectMember } from "./KanbanCard";
 
 const easeSmooth = [0.25, 0.1, 0.25, 1] as const;
 
-const PRIORITY_CONFIG: Record<number, { label: string; color: string }> = {
-  0: { label: "Low",      color: "text-zinc-400" },
-  1: { label: "Medium",   color: "text-sky-400" },
-  2: { label: "High",     color: "text-amber-400" },
-  3: { label: "Critical", color: "text-red-400" },
-};
+const PRIORITY_OPTIONS: { value: number; label: string; dot: string; text: string }[] = [
+  { value: 0, label: "Low",      dot: "bg-zinc-600",   text: "text-zinc-400" },
+  { value: 1, label: "Medium",   dot: "bg-sky-500",    text: "text-sky-400" },
+  { value: 2, label: "High",     dot: "bg-amber-400",  text: "text-amber-400" },
+  { value: 3, label: "Critical", dot: "bg-red-500",    text: "text-red-400" },
+];
 
 const STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: string }> = {
-  "To Do":       { icon: <Circle className="h-3.5 w-3.5" />,        color: "text-zinc-400" },
-  "In Progress": { icon: <Clock className="h-3.5 w-3.5" />,         color: "text-sky-400" },
-  "Done":        { icon: <CheckCircle2 className="h-3.5 w-3.5" />,  color: "text-emerald-400" },
+  "To Do":       { icon: <Circle className="h-3.5 w-3.5" />,       color: "text-zinc-400" },
+  "In Progress": { icon: <Clock className="h-3.5 w-3.5" />,        color: "text-sky-400" },
+  "Done":        { icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: "text-emerald-400" },
 };
 
 function getInitials(name: string): string {
@@ -50,16 +53,20 @@ export function KanbanTaskHUD({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [selectedPriority, setSelectedPriority] = useState<number>(0);
+  const [storyPoints, setStoryPoints] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // Sync selected member when task changes
+  // Sync all fields when task changes
   useEffect(() => {
     setSelectedMemberId(task?.assigned_to ?? null);
+    setSelectedPriority(task?.priority ?? 0);
+    setStoryPoints(task?.story_points ?? null);
     setSaveError(null);
     setSaved(false);
-  }, [task?.id, task?.assigned_to]);
+  }, [task?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,36 +88,78 @@ export function KanbanTaskHUD({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onOpenChange]);
 
-  async function handleSaveAssignee() {
-    if (!task) return;
+  const assigneeChanged = selectedMemberId !== (task?.assigned_to ?? null);
+  const priorityChanged = selectedPriority !== (task?.priority ?? 0);
+  const pointsChanged = storyPoints !== (task?.story_points ?? null);
+  const hasChanges = assigneeChanged || priorityChanged || pointsChanged;
+
+  async function handleSave() {
+    if (!task || !hasChanges) return;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
 
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("tasks")
-      .update({ assigned_to: selectedMemberId })
-      .eq("id", task.id);
+    try {
+      const supabase = createClient();
+      const errors: string[] = [];
 
-    setSaving(false);
+      // Update task: assigned_to + priority
+      if (assigneeChanged || priorityChanged) {
+        const { error } = await supabase
+          .from("tasks")
+          .update({
+            ...(assigneeChanged ? { assigned_to: selectedMemberId } : {}),
+            ...(priorityChanged ? { priority: selectedPriority } : {}),
+          })
+          .eq("id", task.id);
+        if (error) errors.push(`Task: ${error.message}`);
+      }
 
-    if (error) {
-      console.error("Failed to update assignee:", error.message);
-      setSaveError("Failed to save. Please try again.");
-      return;
+      // Update story: story_points (writes to parent story)
+      if (pointsChanged && task.story_id) {
+        const { error } = await supabase
+          .from("stories")
+          .update({ story_points: storyPoints })
+          .eq("id", task.story_id);
+        if (error) errors.push(`Story points: ${error.message}`);
+      }
+
+      if (errors.length > 0) {
+        setSaveError(errors.join(" · "));
+        return;
+      }
+
+      setSaved(true);
+      onTaskUpdated({
+        ...task,
+        assigned_to: selectedMemberId,
+        priority: selectedPriority,
+        story_points: storyPoints,
+      });
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setSaveError("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
     }
-
-    setSaved(true);
-    onTaskUpdated({ ...task, assigned_to: selectedMemberId });
-    setTimeout(() => setSaved(false), 2000);
   }
 
-  const assigneeChanged = selectedMemberId !== (task?.assigned_to ?? null);
-  const priority = PRIORITY_CONFIG[task?.priority ?? 0] ?? PRIORITY_CONFIG[0];
   const statusConfig = STATUS_CONFIG[task?.status ?? "To Do"] ?? STATUS_CONFIG["To Do"];
   const assignee = members.find((m) => m.user_id === task?.assigned_to) ?? null;
   const selectedMember = members.find((m) => m.user_id === selectedMemberId) ?? null;
+
+  // Footer hint text
+  const changesSummary = (() => {
+    if (!hasChanges) return "No changes";
+    const parts: string[] = [];
+    if (assigneeChanged)
+      parts.push(selectedMember ? `Assign → ${selectedMember.full_name}` : "Remove assignee");
+    if (priorityChanged)
+      parts.push(`Priority → ${PRIORITY_OPTIONS[selectedPriority]?.label ?? selectedPriority}`);
+    if (pointsChanged)
+      parts.push(`Points → ${storyPoints ?? "none"}`);
+    return parts.join(" · ");
+  })();
 
   if (!mounted) return null;
 
@@ -125,7 +174,6 @@ export function KanbanTaskHUD({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.22, ease: easeSmooth }}
         >
-          {/* Backdrop */}
           <button
             type="button"
             aria-label="Close"
@@ -152,21 +200,11 @@ export function KanbanTaskHUD({
                 >
                   {task.title}
                 </h2>
-                {/* Status + priority row */}
                 <div className="mt-1.5 flex flex-wrap items-center gap-3">
                   <span className={cn("flex items-center gap-1 text-xs font-medium", statusConfig.color)}>
                     {statusConfig.icon}
                     {task.status}
                   </span>
-                  <span className={cn("text-xs font-medium", priority.color)}>
-                    {priority.label} priority
-                  </span>
-                  {task.story_points !== null ? (
-                    <span className="flex items-center gap-1 text-xs font-medium text-zinc-500">
-                      <Hash className="h-3 w-3" aria-hidden />
-                      {task.story_points} story {task.story_points === 1 ? "point" : "points"}
-                    </span>
-                  ) : null}
                 </div>
               </div>
               <button
@@ -180,18 +218,117 @@ export function KanbanTaskHUD({
             </div>
 
             {/* Body */}
-            <div className="flex flex-col gap-5 overflow-y-auto px-5 py-5">
+            <div className="flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-5 py-5">
+
+              {/* Parent story */}
+              {task.story_title ? (
+                <div className="flex items-center gap-2 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/30 px-3 py-2.5">
+                  <BookOpen className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
+                      Parent story
+                    </p>
+                    <p className="truncate text-xs font-medium text-zinc-300">
+                      {task.story_title}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
               {/* Description */}
               {task.description ? (
                 <div>
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                     Description
                   </p>
-                  <p className="text-sm leading-relaxed text-zinc-300">
-                    {task.description}
-                  </p>
+                  <p className="text-sm leading-relaxed text-zinc-300">{task.description}</p>
                 </div>
               ) : null}
+
+              {/* Priority picker */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Priority
+                </p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {PRIORITY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setSelectedPriority(opt.value)}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition-all duration-150",
+                        selectedPriority === opt.value
+                          ? "border-[var(--app-accent)]/40 bg-[var(--app-accent)]/10 text-[var(--foreground)]"
+                          : "border-[var(--app-sidebar-border)] bg-[var(--background)]/30 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                      )}
+                    >
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", opt.dot)} aria-hidden />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Story points */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Story Points
+                  {task.story_title ? (
+                    <span className="ml-1.5 font-normal normal-case text-zinc-600">
+                      (shared with parent story)
+                    </span>
+                  ) : null}
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setStoryPoints((p) => Math.max(0, (p ?? 0) - 1))}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-40"
+                    disabled={storyPoints === null || storyPoints <= 0}
+                    aria-label="Decrease story points"
+                  >
+                    <Minus className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+
+                  <div className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 px-3 py-2">
+                    <Hash className="h-3.5 w-3.5 shrink-0 text-zinc-600" aria-hidden />
+                    <span className="min-w-[2ch] text-center text-sm font-semibold text-[var(--foreground)]">
+                      {storyPoints ?? "—"}
+                    </span>
+                    <span className="text-xs text-zinc-600">
+                      {storyPoints === 1 ? "point" : "points"}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setStoryPoints((p) => (p ?? 0) + 1)}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200"
+                    aria-label="Increase story points"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+
+                  {storyPoints !== null ? (
+                    <button
+                      type="button"
+                      onClick={() => setStoryPoints(null)}
+                      className="text-xs text-zinc-600 underline-offset-2 hover:text-zinc-400 hover:underline"
+                    >
+                      Clear
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setStoryPoints(0)}
+                      className="text-xs text-zinc-600 underline-offset-2 hover:text-zinc-400 hover:underline"
+                    >
+                      Set
+                    </button>
+                  )}
+                </div>
+              </div>
 
               {/* Current assignee */}
               <div>
@@ -222,7 +359,6 @@ export function KanbanTaskHUD({
                   Reassign To
                 </p>
                 <div className="flex flex-col gap-1.5 rounded-xl border border-[var(--app-sidebar-border)] bg-[var(--background)]/40 p-1.5">
-                  {/* Unassigned option */}
                   <button
                     type="button"
                     onClick={() => setSelectedMemberId(null)}
@@ -242,7 +378,6 @@ export function KanbanTaskHUD({
                     ) : null}
                   </button>
 
-                  {/* Member options */}
                   {members.map((member) => (
                     <button
                       key={member.user_id}
@@ -281,14 +416,8 @@ export function KanbanTaskHUD({
             {/* Footer */}
             <div className="shrink-0 border-t border-[var(--app-sidebar-border)] px-5 py-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-zinc-600">
-                  {selectedMember
-                    ? `Will assign to ${selectedMember.full_name}`
-                    : assigneeChanged
-                    ? "Will remove assignee"
-                    : "No changes"}
-                </p>
-                <div className="flex gap-2">
+                <p className="truncate text-xs text-zinc-600">{changesSummary}</p>
+                <div className="flex shrink-0 gap-2">
                   <button
                     type="button"
                     onClick={() => onOpenChange(false)}
@@ -298,19 +427,13 @@ export function KanbanTaskHUD({
                   </button>
                   <button
                     type="button"
-                    onClick={handleSaveAssignee}
-                    disabled={!assigneeChanged || saving}
+                    onClick={handleSave}
+                    disabled={!hasChanges || saving}
                     className={cn(
-                      "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-40",
-                      saved
-                        ? "bg-emerald-500/20 text-emerald-400"
-                        : ""
+                      "inline-flex min-w-[72px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-40",
+                      saved ? "bg-emerald-500/20 text-emerald-400" : ""
                     )}
-                    style={
-                      saved
-                        ? undefined
-                        : { background: "var(--app-accent)", color: "var(--background)" }
-                    }
+                    style={saved ? undefined : { background: "var(--app-accent)", color: "var(--background)" }}
                   >
                     {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
                   </button>

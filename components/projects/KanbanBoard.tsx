@@ -12,7 +12,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { motion } from "framer-motion";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, GitBranch } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanColumn, type ColumnStatus } from "./KanbanColumn";
 import { KanbanCard, type TaskCard, type ProjectMember } from "./KanbanCard";
@@ -50,9 +50,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   const pendingUpdate = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
   const fetchData = useCallback(async () => {
@@ -61,7 +59,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     try {
       const supabase = createClient();
 
-      // Fetch tasks joined with story_points from stories
+      // Fetch tasks whose parent story is in_sprint, joining story title + points
       const { data: tasksData, error: tasksError } = await supabase
         .from("tasks")
         .select(`
@@ -73,7 +71,11 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
           priority,
           status,
           assigned_to,
-          stories ( story_points )
+          stories (
+            title,
+            story_points,
+            in_sprint
+          )
         `)
         .eq("project_id", projectId)
         .order("priority", { ascending: false });
@@ -83,22 +85,25 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         return;
       }
 
-      // Flatten story_points from nested stories relation
-      const tasks: TaskCard[] = (tasksData ?? []).map((row: any) => ({
-        id: row.id,
-        story_id: row.story_id,
-        project_id: row.project_id,
-        title: row.title,
-        description: row.description,
-        priority: row.priority,
-        status: row.status,
-        assigned_to: row.assigned_to,
-        story_points: row.stories?.story_points ?? null,
-      }));
+      // Filter to only tasks whose parent story is in_sprint and flatten story fields
+      const tasks: TaskCard[] = (tasksData ?? [])
+        .filter((row: any) => row.stories?.in_sprint === true)
+        .map((row: any) => ({
+          id: row.id,
+          story_id: row.story_id,
+          project_id: row.project_id,
+          title: row.title,
+          description: row.description,
+          priority: row.priority,
+          status: row.status,
+          assigned_to: row.assigned_to,
+          story_points: row.stories?.story_points ?? null,
+          story_title: row.stories?.title ?? null,
+        }));
 
       setTasksByStatus(groupByStatus(tasks));
 
-      // Fetch project members with their user details
+      // Fetch project members joined with user details
       const { data: membersData, error: membersError } = await supabase
         .from("project_members")
         .select("user_id, users ( full_name, email )")
@@ -135,9 +140,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   function handleDragStart(event: DragStartEvent) {
     const taskId = event.active.id as string;
     const col = findColumnForTask(taskId);
-    if (col) {
-      setActiveTask(tasksByStatus[col].find((t) => t.id === taskId) ?? null);
-    }
+    if (col) setActiveTask(tasksByStatus[col].find((t) => t.id === taskId) ?? null);
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -165,7 +168,6 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     } else {
       const task = tasksByStatus[sourceCol].find((t) => t.id === activeId);
       if (!task) return;
-
       const updatedTask = { ...task, status: destCol };
 
       setTasksByStatus((prev) => {
@@ -198,27 +200,22 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     setHudOpen(true);
   }
 
-  // When assignee is updated in HUD, reflect it in local state immediately
   function handleTaskUpdated(updated: TaskCard) {
     setTasksByStatus((prev) => {
-      const col = Object.keys(prev).find((c) =>
-        prev[c as ColumnStatus].some((t) => t.id === updated.id)
-      ) as ColumnStatus | undefined;
+      const col = COLUMNS.find((c) => prev[c].some((t) => t.id === updated.id));
       if (!col) return prev;
-      return {
-        ...prev,
-        [col]: prev[col].map((t) => (t.id === updated.id ? updated : t)),
-      };
+      return { ...prev, [col]: prev[col].map((t) => (t.id === updated.id ? updated : t)) };
     });
-    // Keep HUD task in sync
     setHudTask(updated);
   }
+
+  const totalTasks = COLUMNS.reduce((sum, col) => sum + tasksByStatus[col].length, 0);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="h-6 w-6 animate-spin text-[var(--app-accent)]" aria-hidden />
-        <span className="ml-3 text-sm text-zinc-500">Loading board…</span>
+        <span className="ml-3 text-sm text-zinc-500">Loading sprint board…</span>
       </div>
     );
   }
@@ -235,6 +232,18 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         >
           Try again
         </button>
+      </div>
+    );
+  }
+
+  if (totalTasks === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-24 text-center">
+        <GitBranch className="h-8 w-8 text-zinc-600" aria-hidden />
+        <p className="text-base font-medium text-zinc-400">No sprint tasks yet</p>
+        <p className="max-w-xs text-sm text-zinc-600">
+          Mark stories as "in sprint" from the Backlog to populate the Kanban board.
+        </p>
       </div>
     );
   }
@@ -267,11 +276,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         <DragOverlay dropAnimation={{ duration: 180, easing: "ease" }}>
           {activeTask ? (
             <div className="rotate-1 scale-105 opacity-95 shadow-2xl">
-              <KanbanCard
-                task={activeTask}
-                members={members}
-                onOpenHUD={() => {}}
-              />
+              <KanbanCard task={activeTask} members={members} onOpenHUD={() => {}} />
             </div>
           ) : null}
         </DragOverlay>
