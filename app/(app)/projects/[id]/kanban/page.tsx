@@ -7,7 +7,7 @@ export default function ProjectKanbanPage() {
   const params = useParams();
   const projectId = typeof params.id === "string" ? params.id : "";
   return (
-    <div className="p-6 md:p-8">
+    <div className="flex min-h-0 flex-1 flex-col p-6 md:p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] md:text-3xl">
           Kanban

@@ -122,6 +122,35 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/**
+ * Thin dark scrollbars for modals/panels (matches ScrumIQ shell; avoids bright OS defaults).
+ * Use on scrollable regions inside dialogs, not the main app chrome (that stays scrollbar-hidden).
+ */
+.app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--auth-border) 88%, var(--app-accent) 12%)
+    color-mix(in oklch, var(--background) 55%, transparent);
+}
+
+.app-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.app-scrollbar::-webkit-scrollbar-track {
+  background: color-mix(in oklch, var(--background) 50%, transparent);
+  border-radius: 9999px;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--auth-border) 80%, var(--app-accent-muted) 20%);
+  border-radius: 9999px;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--app-accent-muted) 45%, var(--auth-border) 55%);
+}
+
 /* Auth-style animated gradient — 18s ease-in-out infinite */
 @keyframes gradient-shift {
   0%,

@@ -13,6 +13,11 @@ export function ExpandableBacklogText({
   textareaClassName,
   emptyHint = "Empty — click + to edit",
   keyboardHint = true,
+  enterKeyMode = "commit",
+  /** After blur / Enter-commit: e.g. debounced PATCH from Kanban story panel. */
+  onFinishEditing,
+  /** When true with `newline` mode, hint mentions server save (Kanban panel only). */
+  serverAutosaveHint = false,
   "aria-label": ariaLabel,
 }: {
   value: string;
@@ -20,8 +25,15 @@ export function ExpandableBacklogText({
   rows?: number;
   textareaClassName: string;
   emptyHint?: string;
-  /** Show “Enter to finish · Ctrl+Enter new line” under the field while editing. */
+  /** Show “Enter to finish · Ctrl+Enter new line” under the field while editing (commit mode only). */
   keyboardHint?: boolean;
+  /**
+   * `commit` (default): plain Enter finishes editing (blur). Ctrl/Cmd+Enter inserts a newline.
+   * `newline`: plain Enter inserts a newline (natural textarea behavior).
+   */
+  enterKeyMode?: "commit" | "newline";
+  onFinishEditing?: () => void;
+  serverAutosaveHint?: boolean;
   "aria-label"?: string;
 }) {
   const [editing, setEditing] = useState(false);
@@ -37,7 +49,10 @@ export function ExpandableBacklogText({
 
   const finishEditing = () => {
     setEditing(false);
-    setShowSavedFlash(true);
+    onFinishEditing?.();
+    if (!onFinishEditing) {
+      setShowSavedFlash(true);
+    }
   };
 
   if (editing) {
@@ -50,6 +65,9 @@ export function ExpandableBacklogText({
           onBlur={() => finishEditing()}
           onKeyDown={(e) => {
             if (e.key !== "Enter") return;
+            if (enterKeyMode === "newline") {
+              return;
+            }
             const isNewLine = e.ctrlKey || e.metaKey;
             if (isNewLine) {
               e.preventDefault();
@@ -76,7 +94,7 @@ export function ExpandableBacklogText({
           autoFocus
           aria-label={ariaLabel}
         />
-        {keyboardHint ? (
+        {keyboardHint && enterKeyMode === "commit" ? (
           <p className="text-[11px] leading-snug text-zinc-500">
             <kbd className="rounded border border-zinc-600/60 bg-zinc-900/80 px-1 py-px font-mono text-[10px] text-zinc-400">
               Enter
@@ -90,6 +108,14 @@ export function ExpandableBacklogText({
               Enter
             </kbd>{" "}
             for a new line (⌘+Enter on Mac)
+          </p>
+        ) : keyboardHint && enterKeyMode === "newline" ? (
+          <p className="text-[11px] leading-snug text-zinc-500">
+            <kbd className="rounded border border-zinc-600/60 bg-zinc-900/80 px-1 py-px font-mono text-[10px] text-zinc-400">
+              Enter
+            </kbd>{" "}
+            for a new line. Click outside when done
+            {serverAutosaveHint ? " — saves to the project." : "."}
           </p>
         ) : null}
       </div>

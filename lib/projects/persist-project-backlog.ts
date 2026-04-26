@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiBacklogDraftPayload } from "@/lib/projects/ai-backlog-draft-types";
+import {
+  coerceStoryPriorityLevel,
+  type StoryPriorityLevel,
+} from "@/lib/projects/story-priority-level";
 
 const MAX_TITLE = 2000;
 const MAX_DESC = 32000;
 const MAX_AC = 32000;
-const DEFAULT_TASK_STATUS = "To Do";
-
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -23,6 +25,14 @@ function clip(s: string, max: number): string {
 
 function acToText(lines: string[]): string {
   return clip(lines.map((l) => l.trim()).filter(Boolean).join("\n\n"), MAX_AC);
+}
+
+const BOARD_STATUSES = ["To Do", "In Progress", "Done"] as const;
+type BoardStatus = (typeof BOARD_STATUSES)[number];
+
+function coerceBoardStatus(value: string | null | undefined): BoardStatus {
+  const v = (value ?? "").trim();
+  return BOARD_STATUSES.includes(v as BoardStatus) ? (v as BoardStatus) : "To Do";
 }
 
 export type PersistProjectBacklogResult =
@@ -53,19 +63,38 @@ export async function persistProjectBacklog(
 
   const { data: existingStories } = await supabase
     .from("stories")
-    .select("id, in_sprint, story_points")
+    .select("id, in_sprint, story_points, board_status, assigned_to, notes, priority_level")
     .eq("project_id", projectId);
   type StoryPreserve = {
     in_sprint: boolean;
     story_points: number | null;
+    board_status: BoardStatus;
+    assigned_to: string | null;
+    notes: string;
+    priority_level: StoryPriorityLevel;
   };
   const storyPreserveById = new Map<string, StoryPreserve>();
   for (const row of existingStories ?? []) {
     if (!row.id) continue;
+    const assigned =
+      typeof row.assigned_to === "string" &&
+      row.assigned_to.length > 0 &&
+      UUID_RE.test(row.assigned_to)
+        ? row.assigned_to
+        : null;
     storyPreserveById.set(row.id, {
       in_sprint: Boolean(row.in_sprint),
       story_points:
         typeof row.story_points === "number" ? row.story_points : null,
+      board_status: coerceBoardStatus(
+        typeof row.board_status === "string" ? row.board_status : null
+      ),
+      assigned_to: assigned,
+      notes:
+        typeof row.notes === "string" ? clip(row.notes, MAX_DESC) : "",
+      priority_level: coerceStoryPriorityLevel(
+        (row as { priority_level?: number | null }).priority_level
+      ),
     });
   }
 
@@ -141,10 +170,14 @@ export async function persistProjectBacklog(
         project_id: projectId,
         title: clip(story.title || "Untitled story", MAX_TITLE),
         description: "",
+        notes: prev?.notes ?? "",
         acceptance_criteria: acToText(story.acceptanceCriteria ?? []),
         priority: si,
         in_sprint,
         story_points,
+        board_status: prev?.board_status ?? "To Do",
+        assigned_to: prev?.assigned_to ?? null,
+        priority_level: prev?.priority_level ?? 0,
       });
       if (storyErr) {
         return { ok: false, message: storyErr.message };
@@ -162,7 +195,6 @@ export async function persistProjectBacklog(
           title: clip(title, MAX_TITLE),
           description: null,
           priority: ti,
-          status: DEFAULT_TASK_STATUS,
         });
         if (taskErr) {
           return { ok: false, message: taskErr.message };

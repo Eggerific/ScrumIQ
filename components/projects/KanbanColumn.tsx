@@ -1,11 +1,12 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
-import { KanbanCard, type TaskCard, type ProjectMember } from "./KanbanCard";
+import { KanbanCard, type KanbanBoardStory } from "./KanbanCard";
+import type { ProjectMember } from "./project-member";
+import type { KanbanWorkflowColumn } from "@/lib/projects/kanban-workflow";
 
-export type ColumnStatus = "To Do" | "In Progress" | "Done";
+export type ColumnStatus = KanbanWorkflowColumn;
 
 const COLUMN_CONFIG: Record<ColumnStatus, { accent: string; badge: string; glow: string }> = {
   "To Do": {
@@ -27,18 +28,35 @@ const COLUMN_CONFIG: Record<ColumnStatus, { accent: string; badge: string; glow:
 
 interface KanbanColumnProps {
   status: ColumnStatus;
-  tasks: TaskCard[];
+  stories: KanbanBoardStory[];
   members: ProjectMember[];
-  onCardClick: (task: TaskCard) => void;
+  onCardClick: (story: KanbanBoardStory) => void;
+  onPersistStoryPatch: (
+    storyId: string,
+    patch: {
+      description?: string;
+      acceptance_criteria?: string;
+      assigned_to?: string | null;
+      board_status?: "To Do" | "In Progress" | "Done";
+      notes?: string;
+      task_titles?: string[];
+      priority_level?: 0 | 1 | 2 | 3;
+    }
+  ) => Promise<boolean>;
 }
 
-export function KanbanColumn({ status, tasks, members, onCardClick }: KanbanColumnProps) {
+export function KanbanColumn({
+  status,
+  stories,
+  members,
+  onCardClick,
+  onPersistStoryPatch,
+}: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const config = COLUMN_CONFIG[status];
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-3">
-      {/* Column header */}
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
       <div className="flex items-center justify-between px-1">
         <h3 className={cn("text-sm font-semibold tracking-wide", config.accent)}>
           {status}
@@ -49,38 +67,33 @@ export function KanbanColumn({ status, tasks, members, onCardClick }: KanbanColu
             config.badge
           )}
         >
-          {tasks.length}
+          {stories.length}
         </span>
       </div>
 
-      {/* Drop zone */}
       <div
         ref={setNodeRef}
         className={cn(
-          "flex min-h-[480px] flex-col gap-2.5 rounded-2xl border p-3 transition-all duration-200",
+          "app-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overflow-x-hidden rounded-2xl border p-3 transition-all duration-200",
           config.glow,
           isOver
             ? "border-[var(--app-accent)]/50 bg-[var(--app-accent)]/5"
             : "border-[var(--app-sidebar-border)] bg-[var(--background)]/40"
         )}
       >
-        <SortableContext
-          items={tasks.map((t) => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {tasks.map((task) => (
-            <KanbanCard
-              key={task.id}
-              task={task}
-              members={members}
-              onOpenHUD={onCardClick}
-            />
-          ))}
-        </SortableContext>
+        {stories.map((story) => (
+          <KanbanCard
+            key={story.id}
+            story={story}
+            members={members}
+            onOpen={onCardClick}
+            onPersistStoryPatch={onPersistStoryPatch}
+          />
+        ))}
 
-        {tasks.length === 0 ? (
+        {stories.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <p className="text-xs text-zinc-700">No tasks</p>
+            <p className="text-xs text-zinc-700">No stories</p>
           </div>
         ) : null}
       </div>
