@@ -1,10 +1,10 @@
 /**
- * Fired when persisted backlog/stories for a project change after a successful
- * `POST /api/projects/:projectId/backlog`.
+ * Fired when persisted backlog/stories for a project change in ways that should
+ * refresh Sprint and Kanban views for that project:
  *
- * Same event for **mock** (`SCRUMIQ_AI_MODE=mock`, client stub draft) and **live**
- * (server `generate-backlog` + model) — both flows save through the review panel
- * and hit the same persist route.
+ * - Successful `POST /api/projects/:projectId/backlog` (mock or live draft).
+ * - Successful `PATCH /api/projects/:projectId/stories/:storyId` (sprint membership,
+ *   story points) from the Sprint or Backlog UI.
  */
 export const PROJECT_STORIES_CHANGED_EVENT = "scrumiq:project-stories-changed";
 

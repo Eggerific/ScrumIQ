@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -10,24 +11,35 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import { motion } from "framer-motion";
 import { Loader2, AlertCircle, GitBranch } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { patchStory } from "@/lib/projects/patch-story-client";
+import { subscribeProjectStoriesChanged } from "@/lib/projects/project-stories-sync-events";
+import {
+  deriveStoryBoardColumn,
+  mapAndSortKanbanStoriesFromQuery,
+  type KanbanBoardStory,
+} from "@/lib/projects/kanban-workflow";
 import { KanbanColumn, type ColumnStatus } from "./KanbanColumn";
-import { KanbanCard, type TaskCard, type ProjectMember } from "./KanbanCard";
-import { KanbanTaskHUD } from "./KanbanTaskHUD";
+import { KanbanCard } from "./KanbanCard";
+import type { ProjectMember } from "./project-member";
+import { KanbanStoryPanel } from "./KanbanStoryPanel";
 
 const COLUMNS: ColumnStatus[] = ["To Do", "In Progress", "Done"];
 
-type TasksByStatus = Record<ColumnStatus, TaskCard[]>;
-
-function groupByStatus(tasks: TaskCard[]): TasksByStatus {
-  return {
-    "To Do": tasks.filter((t) => t.status === "To Do"),
-    "In Progress": tasks.filter((t) => t.status === "In Progress"),
-    "Done": tasks.filter((t) => t.status === "Done"),
+function bucketStoriesByWorkflow(
+  stories: KanbanBoardStory[]
+): Record<ColumnStatus, KanbanBoardStory[]> {
+  const acc: Record<ColumnStatus, KanbanBoardStory[]> = {
+    "To Do": [],
+    "In Progress": [],
+    "Done": [],
   };
+  for (const s of stories) {
+    acc[deriveStoryBoardColumn(s)].push(s);
+  }
+  return acc;
 }
 
 interface KanbanBoardProps {
@@ -35,75 +47,49 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ projectId }: KanbanBoardProps) {
-  const [tasksByStatus, setTasksByStatus] = useState<TasksByStatus>({
-    "To Do": [],
-    "In Progress": [],
-    "Done": [],
-  });
+  const pathname = usePathname();
+  const prevPathnameRef = useRef<string | null>(null);
+
+  const [stories, setStories] = useState<KanbanBoardStory[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTask, setActiveTask] = useState<TaskCard | null>(null);
-  const [hudTask, setHudTask] = useState<TaskCard | null>(null);
-  const [hudOpen, setHudOpen] = useState(false);
+  const [activeStory, setActiveStory] = useState<KanbanBoardStory | null>(null);
+  const [panelStory, setPanelStory] = useState<KanbanBoardStory | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
 
-  const pendingUpdate = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUpdate = useRef<number | null>(null);
+
+  const storiesByStatus = useMemo(
+    () => bucketStoriesByWorkflow(stories),
+    [stories]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (opts?: { background?: boolean }) => {
+    const background = opts?.background === true;
+    if (!background) setLoading(true);
     setError(null);
     try {
       const supabase = createClient();
-
-      // Fetch tasks whose parent story is in_sprint, joining story title + points
-      const { data: tasksData, error: tasksError } = await supabase
-        .from("tasks")
-        .select(`
-          id,
-          story_id,
-          project_id,
-          title,
-          description,
-          priority,
-          status,
-          assigned_to,
-          stories (
-            title,
-            story_points,
-            in_sprint
-          )
-        `)
+      const { data, error: qError } = await supabase
+        .from("stories")
+        .select(
+          "id, epic_id, title, story_points, in_sprint, priority, priority_level, board_status, assigned_to, description, notes, acceptance_criteria, epics ( title, priority ), tasks ( id, title, priority )"
+        )
         .eq("project_id", projectId)
-        .order("priority", { ascending: false });
+        .eq("in_sprint", true);
 
-      if (tasksError) {
-        setError("Failed to load tasks. Please try again.");
+      if (qError) {
+        setError("Failed to load sprint board. Please try again.");
         return;
       }
 
-      // Filter to only tasks whose parent story is in_sprint and flatten story fields
-      const tasks: TaskCard[] = (tasksData ?? [])
-        .filter((row: any) => row.stories?.in_sprint === true)
-        .map((row: any) => ({
-          id: row.id,
-          story_id: row.story_id,
-          project_id: row.project_id,
-          title: row.title,
-          description: row.description,
-          priority: row.priority,
-          status: row.status,
-          assigned_to: row.assigned_to,
-          story_points: row.stories?.story_points ?? null,
-          story_title: row.stories?.title ?? null,
-        }));
+      setStories(mapAndSortKanbanStoriesFromQuery(data ?? []));
 
-      setTasksByStatus(groupByStatus(tasks));
-
-      // Fetch project members joined with user details
       const { data: membersData, error: membersError } = await supabase
         .from("project_members")
         .select("user_id, users ( full_name, email )")
@@ -122,7 +108,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     } catch {
       setError("Something went wrong loading the board.");
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [projectId]);
 
@@ -130,90 +116,143 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     void fetchData();
   }, [fetchData]);
 
-  function findColumnForTask(taskId: string): ColumnStatus | null {
-    for (const col of COLUMNS) {
-      if (tasksByStatus[col].some((t) => t.id === taskId)) return col;
+  useEffect(() => {
+    if (!pathname) return;
+    const prev = prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+    if (prev === null) return;
+    if (!pathname.includes(`/projects/${projectId}/kanban`)) return;
+    void fetchData({ background: true });
+  }, [pathname, projectId, fetchData]);
+
+  useEffect(() => {
+    return subscribeProjectStoriesChanged(projectId, () => {
+      void fetchData({ background: true });
+    });
+  }, [projectId, fetchData]);
+
+  useEffect(() => {
+    if (!panelStory) return;
+    const next = stories.find((s) => s.id === panelStory.id);
+    if (!next) {
+      if (panelOpen) setPanelOpen(false);
+      setPanelStory(null);
+      return;
     }
-    return null;
+    if (!panelOpen) return;
+    const tasksJson = JSON.stringify(next.tasks);
+    const prevTasks = JSON.stringify(panelStory.tasks);
+    const changed =
+      next.story_points !== panelStory.story_points ||
+      next.title !== panelStory.title ||
+      next.epic_title !== panelStory.epic_title ||
+      next.acceptance_criteria !== panelStory.acceptance_criteria ||
+      next.description !== panelStory.description ||
+      next.notes !== panelStory.notes ||
+      next.assigned_to !== panelStory.assigned_to ||
+      next.board_status !== panelStory.board_status ||
+      next.priority_level !== panelStory.priority_level ||
+      tasksJson !== prevTasks;
+    if (changed) setPanelStory(next);
+  }, [stories, panelStory, panelOpen]);
+
+  function findColumnForStory(storyId: string): ColumnStatus | null {
+    const s = stories.find((x) => x.id === storyId);
+    if (!s) return null;
+    return deriveStoryBoardColumn(s);
   }
 
   function handleDragStart(event: DragStartEvent) {
-    const taskId = event.active.id as string;
-    const col = findColumnForTask(taskId);
-    if (col) setActiveTask(tasksByStatus[col].find((t) => t.id === taskId) ?? null);
+    const id = event.active.id as string;
+    const found = stories.find((s) => s.id === id) ?? null;
+    setActiveStory(found);
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    setActiveTask(null);
+    setActiveStory(null);
     if (!over) return;
 
     const activeId = active.id as string;
     const overId = over.id as string;
-    const sourceCol = findColumnForTask(activeId);
+    const sourceCol = findColumnForStory(activeId);
     if (!sourceCol) return;
 
     const destCol: ColumnStatus = COLUMNS.includes(overId as ColumnStatus)
       ? (overId as ColumnStatus)
-      : (findColumnForTask(overId) ?? sourceCol);
+      : (findColumnForStory(overId) ?? sourceCol);
 
-    if (sourceCol === destCol) {
-      const oldIndex = tasksByStatus[sourceCol].findIndex((t) => t.id === activeId);
-      const newIndex = tasksByStatus[destCol].findIndex((t) => t.id === overId);
-      if (oldIndex === newIndex) return;
-      setTasksByStatus((prev) => ({
-        ...prev,
-        [sourceCol]: arrayMove(prev[sourceCol], oldIndex, newIndex),
-      }));
-    } else {
-      const task = tasksByStatus[sourceCol].find((t) => t.id === activeId);
-      if (!task) return;
-      const updatedTask = { ...task, status: destCol };
+    if (sourceCol === destCol) return;
 
-      setTasksByStatus((prev) => {
-        const sourceList = prev[sourceCol].filter((t) => t.id !== activeId);
-        const overIndex = prev[destCol].findIndex((t) => t.id === overId);
-        const destList = [...prev[destCol]];
-        overIndex >= 0
-          ? destList.splice(overIndex, 0, updatedTask)
-          : destList.push(updatedTask);
-        return { ...prev, [sourceCol]: sourceList, [destCol]: destList };
-      });
+    const story = stories.find((s) => s.id === activeId);
+    if (!story) return;
 
-      if (pendingUpdate.current) clearTimeout(pendingUpdate.current);
-      pendingUpdate.current = setTimeout(async () => {
-        const supabase = createClient();
-        const { error: updateError } = await supabase
-          .from("tasks")
-          .update({ status: destCol })
-          .eq("id", activeId);
-        if (updateError) {
-          console.error("Failed to update task status:", updateError.message);
+    setStories((prev) =>
+      prev.map((s) =>
+        s.id === activeId ? { ...s, board_status: destCol } : s
+      )
+    );
+
+    if (pendingUpdate.current != null) window.clearTimeout(pendingUpdate.current);
+    pendingUpdate.current = window.setTimeout(() => {
+      void (async () => {
+        const result = await patchStory(projectId, activeId, {
+          board_status: destCol,
+        });
+        if (!result.ok) {
+          console.error("Failed to update story board column:", result.message);
           void fetchData();
         }
-      }, 400);
-    }
+      })();
+    }, 400);
   }
 
-  function handleCardClick(task: TaskCard) {
-    setHudTask(task);
-    setHudOpen(true);
+  function handleCardClick(s: KanbanBoardStory) {
+    setPanelStory(s);
+    setPanelOpen(true);
   }
 
-  function handleTaskUpdated(updated: TaskCard) {
-    setTasksByStatus((prev) => {
-      const col = COLUMNS.find((c) => prev[c].some((t) => t.id === updated.id));
-      if (!col) return prev;
-      return { ...prev, [col]: prev[col].map((t) => (t.id === updated.id ? updated : t)) };
-    });
-    setHudTask(updated);
+  function handleStoryUpdated(updated: KanbanBoardStory) {
+    setStories((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    setPanelStory(updated);
   }
 
-  const totalTasks = COLUMNS.reduce((sum, col) => sum + tasksByStatus[col].length, 0);
+  const handlePersistStoryPatch = useCallback(
+    async (
+      storyId: string,
+      patch: {
+        description?: string;
+        acceptance_criteria?: string;
+        assigned_to?: string | null;
+        board_status?: "To Do" | "In Progress" | "Done";
+        notes?: string;
+        task_titles?: string[];
+        priority_level?: 0 | 1 | 2 | 3;
+      }
+    ) => {
+      const result = await patchStory(projectId, storyId, patch);
+      if (!result.ok) return false;
+      const { task_titles, ...storyFields } = patch;
+      void task_titles;
+      setStories((prev) =>
+        prev.map((s) => (s.id === storyId ? { ...s, ...storyFields } : s))
+      );
+      setPanelStory((prev) =>
+        prev?.id === storyId ? { ...prev, ...storyFields } : prev
+      );
+      if (patch.task_titles !== undefined) {
+        void fetchData({ background: true });
+      }
+      return true;
+    },
+    [projectId, fetchData]
+  );
+
+  const totalStories = stories.length;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
+      <div className="flex min-h-0 flex-1 items-center justify-center py-24">
         <Loader2 className="h-6 w-6 animate-spin text-[var(--app-accent)]" aria-hidden />
         <span className="ml-3 text-sm text-zinc-500">Loading sprint board…</span>
       </div>
@@ -222,7 +261,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 py-24 text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-24 text-center">
         <AlertCircle className="h-6 w-6 text-red-400" aria-hidden />
         <p className="text-sm text-zinc-400">{error}</p>
         <button
@@ -236,20 +275,20 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     );
   }
 
-  if (totalTasks === 0) {
+  if (totalStories === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 py-24 text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-24 text-center">
         <GitBranch className="h-8 w-8 text-zinc-600" aria-hidden />
-        <p className="text-base font-medium text-zinc-400">No sprint tasks yet</p>
+        <p className="text-base font-medium text-zinc-400">No sprint stories yet</p>
         <p className="max-w-xs text-sm text-zinc-600">
-          Mark stories as "in sprint" from the Backlog to populate the Kanban board.
+          Add stories to the sprint from the Sprint or Backlog page — the same cards appear here.
         </p>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -259,36 +298,46 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-          className="flex gap-4 overflow-x-auto pb-4 md:gap-6"
+          className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden pb-4 md:gap-6"
         >
           {COLUMNS.map((col) => (
-            <div key={col} className="w-[300px] shrink-0 md:w-[340px] lg:flex-1 lg:w-auto">
+            <div
+              key={col}
+              className="flex min-h-0 w-[320px] shrink-0 flex-col md:w-[400px] lg:min-w-0 lg:flex-1 lg:w-auto"
+            >
               <KanbanColumn
                 status={col}
-                tasks={tasksByStatus[col]}
+                stories={storiesByStatus[col]}
                 members={members}
                 onCardClick={handleCardClick}
+                onPersistStoryPatch={handlePersistStoryPatch}
               />
             </div>
           ))}
         </motion.div>
 
         <DragOverlay dropAnimation={{ duration: 180, easing: "ease" }}>
-          {activeTask ? (
+          {activeStory ? (
             <div className="rotate-1 scale-105 opacity-95 shadow-2xl">
-              <KanbanCard task={activeTask} members={members} onOpenHUD={() => {}} />
+              <KanbanCard
+                story={activeStory}
+                members={members}
+                onOpen={() => {}}
+                onPersistStoryPatch={async () => true}
+              />
             </div>
           ) : null}
         </DragOverlay>
       </DndContext>
 
-      <KanbanTaskHUD
-        task={hudTask}
+      <KanbanStoryPanel
+        projectId={projectId}
+        story={panelStory}
         members={members}
-        open={hudOpen}
-        onOpenChange={setHudOpen}
-        onTaskUpdated={handleTaskUpdated}
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
+        onStoryUpdated={handleStoryUpdated}
       />
-    </>
+    </div>
   );
 }

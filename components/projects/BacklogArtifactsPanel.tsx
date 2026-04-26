@@ -522,6 +522,7 @@ export function BacklogArtifactsPanel({
                               rows={2}
                               textareaClassName={cn(txEpic, "font-semibold")}
                               emptyHint="Untitled epic — click + to edit"
+                              enterKeyMode="newline"
                               aria-label="Epic title"
                             />
                             <label className="text-sm font-medium text-muted-foreground">
@@ -535,6 +536,7 @@ export function BacklogArtifactsPanel({
                               rows={4}
                               textareaClassName={txEpicDesc}
                               emptyHint="No description — click + to add"
+                              enterKeyMode="newline"
                               aria-label="Epic description"
                             />
                           </div>
@@ -638,6 +640,7 @@ export function BacklogArtifactsPanel({
                                         "font-medium"
                                       )}
                                       emptyHint="Story title — click + to edit"
+                                      enterKeyMode="newline"
                                       aria-label="Story title"
                                     />
                                   </div>
@@ -680,6 +683,7 @@ export function BacklogArtifactsPanel({
                                                   rows={2}
                                                   textareaClassName={txAc}
                                                   emptyHint="Criterion — click + to edit"
+                                                  enterKeyMode="newline"
                                                   aria-label={`Acceptance criterion ${aci + 1}`}
                                                 />
                                               </div>
@@ -760,6 +764,7 @@ export function BacklogArtifactsPanel({
                                               rows={2}
                                               textareaClassName={txTask}
                                               emptyHint="Task — click + to edit"
+                                              enterKeyMode="newline"
                                               aria-label="Task"
                                             />
                                           </div>

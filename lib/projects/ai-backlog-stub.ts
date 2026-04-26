@@ -80,7 +80,7 @@ export function buildStubBacklogDraftFromInput(
         story(1, 0, `Primary journeys for ${clip(users, 48)}`, [
           "Critical paths complete without blockers.",
           acCtx[1]!,
-        ], ["Journey map", "Build UX", "Test with users"]),
+        ], ["Journey map", "Build UX", "Validate with target users"]),
         story(1, 1, "Rollout readiness", [
           "Success metrics are trackable.",
           "Constraint tradeoffs documented.",
@@ -121,7 +121,7 @@ export function buildStubBacklogDraftFromInput(
         story(4, 0, "Stable integrations", [
           "Contracts and error handling documented.",
           "Rollback path exists for risky changes.",
-        ], ["API contracts", "Integration tests"]),
+        ], ["API contracts", "Harden integration paths"]),
         story(4, 1, "Observability", [
           "Logs/metrics sufficient to debug production issues.",
         ], ["Tracing", "Alerts"]),
