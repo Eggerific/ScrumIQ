@@ -37,7 +37,9 @@ export function AppMain({ children }: { children: React.ReactNode }) {
       }}
     >
       {/* Background paints on the scroll container so no gap/black strip at the bottom */}
-      <div className="relative z-10 min-w-0 flex-1">{children}</div>
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
+        {children}
+      </div>
     </motion.main>
   );
 }

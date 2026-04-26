@@ -5,8 +5,12 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { PageShell } from "@/components/app/PageShell";
 import type { AiBacklogDraftPayload } from "@/lib/projects/ai-backlog-draft-types";
-import { readBacklogDraft } from "@/lib/projects/backlog-draft-storage";
+import {
+  clearBacklogDraft,
+  readBacklogDraft,
+} from "@/lib/projects/backlog-draft-storage";
 import { fetchProjectBacklogDraftFromDb } from "@/lib/projects/fetch-project-backlog-draft";
+import { subscribeProjectStoriesChanged } from "@/lib/projects/project-stories-sync-events";
 import { createClient } from "@/lib/supabase/client";
 import { useProjectsWorkspace } from "@/components/projects/ProjectsWorkspaceProvider";
 import { useEffect, useMemo, useState } from "react";
@@ -18,15 +22,25 @@ export function ProjectBacklogView({ projectId }: { projectId: string }) {
   const { projects, projectsHydrated } = useProjectsWorkspace();
   const project = projects.find((p) => p.id === projectId);
 
+  /** Bumps when live DB stories change so we re-read sessionStorage (e.g. after Kanban save). */
+  const [liveStoriesEpoch, setLiveStoriesEpoch] = useState(0);
+
   const sessionDraft = useMemo(
     () => (projectId ? readBacklogDraft(projectId) : null),
-    [projectId]
+    [projectId, liveStoriesEpoch]
   );
 
   /** Populated async when there is no session draft; `undefined` = fetch in flight. */
   const [dbDraft, setDbDraft] = useState<
     AiBacklogDraftPayload | null | undefined
   >(undefined);
+
+  useEffect(() => {
+    return subscribeProjectStoriesChanged(projectId, () => {
+      clearBacklogDraft(projectId);
+      setLiveStoriesEpoch((n) => n + 1);
+    });
+  }, [projectId]);
 
   useEffect(() => {
     if (sessionDraft !== null) return;
@@ -40,7 +54,7 @@ export function ProjectBacklogView({ projectId }: { projectId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [projectId, sessionDraft]);
+  }, [projectId, sessionDraft, liveStoriesEpoch]);
 
   const draft =
     sessionDraft !== null ? sessionDraft : dbDraft;
@@ -127,7 +141,7 @@ export function ProjectBacklogView({ projectId }: { projectId: string }) {
           </Link>
         </div>
         <BacklogArtifactsPanel
-          key={projectId}
+          key={`${projectId}-${draft.generatedAt}`}
           projectId={projectId}
           initialDraft={draft}
           isProjectOwner={project.isCurrentUserOwner}

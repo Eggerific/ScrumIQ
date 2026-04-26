@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AiBacklogDraftPayload } from "@/lib/projects/ai-backlog-draft-types";
+import type {
+  AiBacklogDraftPayload,
+  AiGeneratedTask,
+} from "@/lib/projects/ai-backlog-draft-types";
 
 function acFromPersistedText(text: string): string[] {
   const t = text.trim();
@@ -17,6 +20,8 @@ type StoryRow = {
   id: string;
   epic_id: string;
   title: string;
+  /** Legacy tasks blob when no `tasks` rows; new saves use `tasks` only and keep this empty. */
+  description: string | null;
   acceptance_criteria: string | null;
   story_points: number | null;
   in_sprint: boolean | null;
@@ -27,6 +32,42 @@ type TaskRow = {
   story_id: string;
   title: string;
 };
+
+function newTaskId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `task-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Tasks in the backlog UI: one draft row per `tasks` row when present; otherwise
+ * split legacy `stories.description` on newlines into separate tasks.
+ */
+function tasksDraftForStory(
+  story: StoryRow,
+  taskRows: TaskRow[]
+): AiGeneratedTask[] {
+  const forStory = taskRows.filter((t) => t.story_id === story.id);
+  if (forStory.length > 0) {
+    return forStory.map((t) => ({
+      id: t.id,
+      title: (t.title ?? "").trim() || "",
+    }));
+  }
+  const rawDesc = story.description ?? "";
+  if (rawDesc.trim().length > 0) {
+    const lines = rawDesc
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (lines.length === 0) {
+      return [{ id: newTaskId(), title: "" }];
+    }
+    return lines.map((title) => ({ id: newTaskId(), title }));
+  }
+  return [{ id: newTaskId(), title: "" }];
+}
 
 /**
  * Builds a backlog draft from persisted epics/stories/tasks so members without
@@ -46,7 +87,9 @@ export async function fetchProjectBacklogDraftFromDb(
 
   const { data: storyRows, error: storyErr } = await supabase
     .from("stories")
-    .select("id, epic_id, title, acceptance_criteria, story_points, in_sprint")
+    .select(
+      "id, epic_id, title, description, acceptance_criteria, story_points, in_sprint"
+    )
     .eq("project_id", projectId)
     .order("priority", { ascending: true });
 
@@ -74,9 +117,7 @@ export async function fetchProjectBacklogDraftFromDb(
         storyPoints: s.story_points,
         inSprint: Boolean(s.in_sprint),
         acceptanceCriteria: acFromPersistedText(s.acceptance_criteria ?? ""),
-        tasks: (taskRows as TaskRow[])
-          .filter((t) => t.story_id === s.id)
-          .map((t) => ({ id: t.id, title: t.title })),
+        tasks: tasksDraftForStory(s, taskRows as TaskRow[]),
       })),
     };
   });
